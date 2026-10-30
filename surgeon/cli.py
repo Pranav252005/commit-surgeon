@@ -9,9 +9,10 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import report
+from . import repo, report
+from . import split as splitmod
 from .analyze import Analysis, analyze_pr
-from .github import parse_ref
+from .github import GitHub, parse_ref
 from .judge import Judge, ModelConfig, judge_hunks
 
 app = typer.Typer(add_completion=False, help="Review the shape of a pull request: what it changes, beyond what the issue asked for.")
@@ -56,6 +57,32 @@ def render_table(a: Analysis, per_hunk: bool = False) -> None:
     console.print(f"[dim]timings (s): {a.timings}[/dim]")
 
 
+def _pipeline(pr, no_model, model, base_url, api_key_env, risky_importers, st):
+    """Analyze, judge and summarize. Returns (analysis, summary, model name or None)."""
+    a = analyze_pr(parse_ref(pr), progress=lambda m: st.update(f"{m}…"))
+    used_model = None
+    if not no_model:
+        j = Judge(ModelConfig.from_env(model=model, base_url=base_url, api_key_env=api_key_env))
+        if j.available():
+            title, body = (a.issue.title, a.issue.body) if a.issue else (a.pr.title, a.pr.body)
+            t0 = time.perf_counter()
+            judge_hunks(a.hunks, j, a.pr.title, title, body, lambda i, n: st.update(f"asking {j.cfg.model} ({i}/{n})…"))
+            a.timings["model"] = round(time.perf_counter() - t0, 2)
+            used_model = j.cfg.model
+        else:
+            a.notes.append(f"{j.error or 'model unavailable'}: showing heuristics only. Start `ollama serve` or pass --base-url.")
+    return a, report.summarize(a, risky_importers), used_model
+
+
+MODEL_OPTS = dict(
+    no_model=typer.Option(False, "--no-model", help="heuristics and import graph only"),
+    model=typer.Option(None, "--model", help="model name (default: $SURGEON_MODEL or gemma3:4b)"),
+    base_url=typer.Option(None, "--base-url", help="OpenAI-compatible endpoint (default: local Ollama)"),
+    api_key_env=typer.Option(None, "--api-key-env", help="name of the env var holding an API key, if the endpoint needs one"),
+    risky_importers=typer.Option(report.RISKY_IMPORTERS, "--risky-importers", help="non-test importers that make a stray change risky"),
+)
+
+
 @app.command()
 def analyze(
     pr: str = typer.Argument(..., help="owner/repo#123 or a PR URL"),
@@ -63,29 +90,16 @@ def analyze(
     md: Optional[Path] = typer.Option(None, "--md", help="write the Markdown report to this path ('-' for stdout)"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="no terminal report"),
     hunks: bool = typer.Option(False, "--hunks", help="heuristics table with one row per hunk (debug view)"),
-    no_model: bool = typer.Option(False, "--no-model", help="heuristics and import graph only"),
-    model: Optional[str] = typer.Option(None, "--model", help="model name (default: $SURGEON_MODEL or gemma3:4b)"),
-    base_url: Optional[str] = typer.Option(None, "--base-url", help="OpenAI-compatible endpoint (default: local Ollama)"),
-    api_key_env: Optional[str] = typer.Option(None, "--api-key-env", help="name of the env var holding an API key, if the endpoint needs one"),
-    risky_importers: int = typer.Option(report.RISKY_IMPORTERS, "--risky-importers", help="non-test importers that make a stray change risky"),
+    no_model: bool = MODEL_OPTS["no_model"],
+    model: Optional[str] = MODEL_OPTS["model"],
+    base_url: Optional[str] = MODEL_OPTS["base_url"],
+    api_key_env: Optional[str] = MODEL_OPTS["api_key_env"],
+    risky_importers: int = MODEL_OPTS["risky_importers"],
 ) -> None:
     """Analyze a PR (read-only against GitHub)."""
     try:
-        ref = parse_ref(pr)
         with console.status("analyzing…") as st:
-            a = analyze_pr(ref, progress=lambda m: st.update(f"{m}…"))
-            used_model = None
-            if not no_model:
-                j = Judge(ModelConfig.from_env(model=model, base_url=base_url, api_key_env=api_key_env))
-                if j.available():
-                    title, body = (a.issue.title, a.issue.body) if a.issue else (a.pr.title, a.pr.body)
-                    t0 = time.perf_counter()
-                    judge_hunks(a.hunks, j, a.pr.title, title, body, lambda i, n: st.update(f"asking {j.cfg.model} ({i}/{n})…"))
-                    a.timings["model"] = round(time.perf_counter() - t0, 2)
-                    used_model = j.cfg.model
-                else:
-                    a.notes.append(f"{j.error or 'model unavailable'}: showing heuristics only. Start `ollama serve` or pass --base-url.")
-            summary = report.summarize(a, risky_importers)
+            a, summary, used_model = _pipeline(pr, no_model, model, base_url, api_key_env, risky_importers, st)
     except (ValueError, LookupError, RuntimeError) as e:
         console.print(f"[red]error:[/red] {e}")
         raise typer.Exit(1)
@@ -103,6 +117,55 @@ def analyze(
             render_table(a, hunks)
         else:
             report.render_terminal(a, summary, console, used_model)
+
+
+@app.command()
+def split(
+    pr: str = typer.Argument(..., help="owner/repo#123 or a PR URL"),
+    out: Path = typer.Option(Path("surgeon-split"), "--out", help="directory for the .patch files"),
+    no_model: bool = MODEL_OPTS["no_model"],
+    model: Optional[str] = MODEL_OPTS["model"],
+    base_url: Optional[str] = MODEL_OPTS["base_url"],
+    api_key_env: Optional[str] = MODEL_OPTS["api_key_env"],
+    risky_importers: int = MODEL_OPTS["risky_importers"],
+    no_verify: bool = typer.Option(False, "--no-verify", help="skip the git apply checks"),
+) -> None:
+    """Write one patch per group (fix / cleanup / unrelated / risky) and print the commands to apply them."""
+    try:
+        with console.status("analyzing…") as st:
+            a, summary, used_model = _pipeline(pr, no_model, model, base_url, api_key_env, risky_importers, st)
+            plan = splitmod.plan(a)
+            if not no_verify and plan.groups:
+                st.update("checking that the patches apply…")
+                reader = repo.fetch_pr(*_owner_repo_number(pr), a.pr.base_sha, a.pr.head_sha, GitHub().token)
+                splitmod.verify(plan, reader)
+    except (ValueError, LookupError, RuntimeError, repo.GitError) as e:
+        console.print(f"[red]error:[/red] {e}")
+        raise typer.Exit(1)
+    console.print(f"[bold]{report.verdict_line(a, summary)}[/bold]")
+    if not plan.groups:
+        console.print("Nothing to split: no hunk was labelled. Run with a model.")
+        raise typer.Exit(0)
+    if len(plan.groups) == 1:
+        console.print("[green]One focused group: nothing to split.[/green]")
+    splitmod.write(plan, out)
+    for g in plan.groups:
+        status = {True: "[green]applies[/green]", False: f"[red]does not apply[/red] {g.note}", None: "[dim]unchecked[/dim]"}[g.applies]
+        console.print(f"{g.number}. {g.filename}: {len(g.hunks)} hunk(s), {g.blurb}  {status}")
+    if plan.skipped:
+        console.print(f"[yellow]{len(plan.skipped)} hunk(s) not placed in any patch (unjudged).[/yellow]")
+    if plan.lossless is True:
+        console.print("[green]Verified: applying all patches in order reproduces the PR head exactly.[/green]")
+    elif plan.note:
+        console.print(f"[yellow]{plan.note}[/yellow]")
+    console.print()
+    for line in splitmod.commands(plan, a, out):
+        console.print(line, markup=False, highlight=False)
+
+
+def _owner_repo_number(pr: str) -> tuple[str, str, int]:
+    r = parse_ref(pr)
+    return r.owner, r.repo, r.number
 
 
 if __name__ == "__main__":

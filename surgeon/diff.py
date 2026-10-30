@@ -1,6 +1,7 @@
 """Unified diff -> files and hunks, with the enclosing symbol of each hunk."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from unidiff import PatchSet
@@ -45,6 +46,7 @@ class FileChange:
     status: str
     hunks: list[Hunk]
     binary: bool = False
+    header: str = ""  # the raw `diff --git` block up to the first hunk, kept so split patches stay faithful
 
 
 def _status(pf) -> str:
@@ -57,9 +59,22 @@ def _status(pf) -> str:
     return "modified"
 
 
+def _headers(diff_text: str) -> list[str]:
+    segs = [s for s in re.split(r"(?m)^(?=diff --git )", diff_text) if s.strip()]
+    out = []
+    for seg in segs:
+        m = re.search(r"(?m)^@@ ", seg)
+        out.append(seg[: m.start()] if m else seg)
+    return out
+
+
 def parse_patch(diff_text: str) -> list[FileChange]:
     files: list[FileChange] = []
-    for pf in PatchSet(diff_text):
+    headers = _headers(diff_text)
+    patchset = PatchSet(diff_text)
+    if len(headers) != len(patchset):
+        headers = [""] * len(patchset)
+    for pf, header in zip(patchset, headers):
         status = _status(pf)
         path = pf.path
         old_path = pf.source_file.removeprefix("a/") if pf.source_file != "/dev/null" else None
@@ -95,7 +110,7 @@ def parse_patch(diff_text: str) -> list[FileChange]:
             hunks.append(
                 Hunk(f"{path}#0", path, old_path, status, 0, 0, 0, 0, 0, [], [], [], [], note, pseudo=True)
             )
-        files.append(FileChange(path, old_path, status, hunks, binary))
+        files.append(FileChange(path, old_path, status, hunks, binary, header))
     return files
 
 
