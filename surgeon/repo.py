@@ -95,5 +95,10 @@ def fetch_pr(owner: str, repo: str, number: int, base_sha: str, head_sha: str, t
     if not has(base_sha):
         run("fetch", "-q", "--depth=1", "--no-tags", "origin", base_sha)
     if not has(head_sha):
-        run("fetch", "-q", "--depth=1", "--no-tags", "origin", f"pull/{number}/head")
+        try:
+            run("fetch", "-q", "--depth=1", "--no-tags", "origin", head_sha)
+        except GitError:  # not fetchable by sha: the PR ref always has its latest head
+            run("fetch", "-q", "--depth=1", "--no-tags", "origin", f"pull/{number}/head")
+        if not has(head_sha):
+            raise GitError(f"commit {head_sha[:10]} of {owner}/{repo}#{number} is no longer fetchable")
     return RevReader(git_dir, base_sha, head_sha)

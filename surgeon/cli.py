@@ -139,7 +139,9 @@ def split(
     if plan.skipped:
         console.print(f"[yellow]{len(plan.skipped)} hunk(s) not placed in any patch (unjudged).[/yellow]")
     if plan.lossless is True:
-        console.print("[green]Verified: applying all patches in order reproduces the PR head exactly.[/green]")
+        console.print("[green]Verified: applying all patches in order reproduces the PR head" + (" (except binary files)." if plan.binary else " exactly.") + "[/green]")
+        if plan.note:
+            console.print(f"[yellow]{plan.note}[/yellow]")
     elif plan.note:
         console.print(f"[yellow]{plan.note}[/yellow]")
     console.print()

@@ -66,3 +66,22 @@ def test_unplaced_hunks_make_the_series_incomplete(tmp_path):
     p = split.plan(a)
     split.verify(p, reader)
     assert p.skipped and p.lossless is False
+
+
+def test_binary_files_are_listed_not_patched_and_the_rest_is_still_lossless(tmp_path):
+    reader, diff = make_repo(tmp_path)
+    git(tmp_path, "checkout", "-q", reader.head)
+    (tmp_path / "logo.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\xff\xfe")
+    git(tmp_path, "add", "-A")
+    git(tmp_path, "commit", "-qm", "add binary")
+    head2 = git(tmp_path, "rev-parse", "HEAD").strip()
+    reader2 = RevReader(tmp_path / ".git", reader.base, head2)
+    text_diff = git(tmp_path, "diff", reader.base, head2)  # no --binary: what GitHub's .diff gives us
+    a = Analysis(pr=None, issue=None, files=parse_patch(text_diff))
+    for h in a.hunks:
+        h.label = "needed"
+    p = split.plan(a)
+    assert p.binary == ["logo.png"]
+    split.verify(p, reader2)
+    assert all(g.applies for g in p.groups)
+    assert p.lossless and "binary" in p.note

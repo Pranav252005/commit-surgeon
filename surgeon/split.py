@@ -45,6 +45,7 @@ class Group:
 class SplitPlan:
     groups: list[Group]
     skipped: list[Hunk]  # unjudged hunks and the like, not in any patch
+    binary: list[str] = field(default_factory=list)  # binary files: GitHub's text diff has no content for them
     lossless: bool | None = None
     note: str = ""
 
@@ -84,17 +85,19 @@ def build_patch(files: list[FileChange], hunk_ids: set[str]) -> str:
 def plan(a: Analysis) -> SplitPlan:
     groups: list[Group] = []
     placed: set[str] = set()
+    binary = [f.path for f in a.files if f.binary]
+    binary_ids = {h.id for f in a.files if f.binary for h in f.hunks}
     for label, slug, blurb in ORDER:
         labels = {label} | ({"ancillary"} if label == "needed" else set())
-        hs = [h for h in a.hunks if h.label in labels]
+        hs = [h for h in a.hunks if h.label in labels and h.id not in binary_ids]
         if not hs:
             continue
         g = Group(len(groups) + 1, slug, blurb, labels, hs)
         g.patch = build_patch(a.files, {h.id for h in hs})
         groups.append(g)
         placed |= {h.id for h in hs}
-    skipped = [h for h in a.hunks if h.id not in placed]
-    return SplitPlan(groups, skipped)
+    skipped = [h for h in a.hunks if h.id not in placed and h.id not in binary_ids]
+    return SplitPlan(groups, skipped, binary)
 
 
 def _git(reader: RevReader, *args: str, env: dict | None = None, input: bytes | None = None) -> subprocess.CompletedProcess:
@@ -126,11 +129,15 @@ def verify(p: SplitPlan, reader: RevReader) -> None:
         if ok:
             tree = _git(reader, "write-tree", env=seq_index).stdout.decode().strip()
             head_tree = _git(reader, "rev-parse", f"{reader.head}^{{tree}}").stdout.decode().strip()
-            p.lossless = (tree == head_tree) and not p.skipped
-            if tree != head_tree and not p.skipped:
-                p.note = "patches applied but the result differs from the PR head (binary files or modes?)"
-            elif p.skipped:
+            differing = set(_git(reader, "diff-tree", "-r", "--name-only", "-z", tree, head_tree).stdout.decode().split("\0")) - {""}
+            only_binary = differing <= set(p.binary)  # binary files cannot be in a text patch; anything else differing is a bug
+            p.lossless = only_binary and not p.skipped
+            if p.skipped:
                 p.note = f"{len(p.skipped)} hunk(s) were not placed in any patch, so the series is incomplete"
+            elif not only_binary:
+                p.note = "patches applied but the result differs from the PR head in: " + ", ".join(sorted(differing - set(p.binary))[:5])
+            elif p.binary:
+                p.note = f"{len(p.binary)} binary file(s) are not in the patches (a text diff has no content for them): " + ", ".join(p.binary[:3])
         else:
             p.lossless = False
 

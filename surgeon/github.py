@@ -97,9 +97,10 @@ class GitHub:
         r.raise_for_status()
         return r
 
-    def pr(self, ref: PRRef) -> PRInfo:
+    def pr(self, ref: PRRef, head_sha: str | None = None) -> PRInfo:
+        """head_sha: look at the PR as it was at an earlier commit (what a reviewer saw when they commented)."""
         d = self._get(f"/repos/{ref.owner}/{ref.repo}/pulls/{ref.number}").json()
-        tip, head = d["base"]["sha"], d["head"]["sha"]
+        tip, head = d["base"]["sha"], head_sha or d["head"]["sha"]
         return PRInfo(
             ref=str(ref),
             title=d["title"],
@@ -125,9 +126,10 @@ class GitHub:
         except (httpx.HTTPError, KeyError, ValueError):
             return None
 
-    def diff(self, ref: PRRef) -> str:
-        r = self._get(f"/repos/{ref.owner}/{ref.repo}/pulls/{ref.number}", headers={"Accept": "application/vnd.github.v3.diff"})
-        return r.text
+    def diff(self, ref: PRRef, base: str | None = None, head: str | None = None) -> str:
+        """The PR diff; with base and head, the diff of that commit range (three-dot, so against the merge base)."""
+        path = f"/repos/{ref.owner}/{ref.repo}/pulls/{ref.number}" if head is None else f"/repos/{ref.owner}/{ref.repo}/compare/{base}...{head}"
+        return self._get(path, headers={"Accept": "application/vnd.github.v3.diff"}).text
 
     def issue(self, repo: str, number: int, source: str) -> IssueInfo | None:
         try:

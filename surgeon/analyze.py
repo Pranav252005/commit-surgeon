@@ -68,14 +68,14 @@ def enrich(files: list[diffmod.FileChange], reader: repo.RevReader, pr: PRInfo, 
     return Analysis(pr, issue, files, timings, notes)
 
 
-def analyze_pr(ref: PRRef, gh: GitHub | None = None, progress=lambda msg: None) -> Analysis:
+def analyze_pr(ref: PRRef, gh: GitHub | None = None, progress=lambda msg: None, head_sha: str | None = None) -> Analysis:
     gh = gh or GitHub()
     timings: dict[str, float] = {}
     tick = time.perf_counter()
 
     progress(f"fetching {ref}")
-    pr = gh.pr(ref)
-    diff_text = gh.diff(ref)
+    pr = gh.pr(ref, head_sha)
+    diff_text = gh.diff(ref, pr.base_tip_sha, head_sha) if head_sha else gh.diff(ref)
     issue = gh.linked_issue(ref, pr)
     timings["github"] = round(time.perf_counter() - tick, 2)
     files = diffmod.parse_patch(diff_text)
