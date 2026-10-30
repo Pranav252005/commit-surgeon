@@ -37,12 +37,13 @@ class PRInfo:
     author: str
     state: str
     base_ref: str
-    base_sha: str
+    base_sha: str  # the commit the PR diff is against: the merge base, falling back to the base branch tip
     head_sha: str
     changed_files: int
     additions: int
     deletions: int
     url: str
+    base_tip_sha: str = ""  # where the base branch pointed when the PR was last updated
 
 
 @dataclass
@@ -98,6 +99,7 @@ class GitHub:
 
     def pr(self, ref: PRRef) -> PRInfo:
         d = self._get(f"/repos/{ref.owner}/{ref.repo}/pulls/{ref.number}").json()
+        tip, head = d["base"]["sha"], d["head"]["sha"]
         return PRInfo(
             ref=str(ref),
             title=d["title"],
@@ -105,13 +107,23 @@ class GitHub:
             author=(d.get("user") or {}).get("login", ""),
             state="merged" if d.get("merged") else d["state"],
             base_ref=d["base"]["ref"],
-            base_sha=d["base"]["sha"],
-            head_sha=d["head"]["sha"],
+            base_sha=self._merge_base(ref, tip, head) or tip,
+            head_sha=head,
             changed_files=d["changed_files"],
             additions=d["additions"],
             deletions=d["deletions"],
             url=d["html_url"],
+            base_tip_sha=tip,
         )
+
+    def _merge_base(self, ref: PRRef, tip: str, head: str) -> str | None:
+        """GitHub's PR diff is against the merge base, which differs from the base tip once the base branch moved on."""
+        try:
+            r = self.http.get(f"/repos/{ref.owner}/{ref.repo}/compare/{tip}...{head}", params={"per_page": 1})
+            r.raise_for_status()
+            return r.json()["merge_base_commit"]["sha"]
+        except (httpx.HTTPError, KeyError, ValueError):
+            return None
 
     def diff(self, ref: PRRef) -> str:
         r = self._get(f"/repos/{ref.owner}/{ref.repo}/pulls/{ref.number}", headers={"Accept": "application/vnd.github.v3.diff"})
