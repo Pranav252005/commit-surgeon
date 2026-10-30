@@ -1,0 +1,20 @@
+# Copy to .github/workflows/surgeon.yml in YOUR OWN repository.
+name: Commit Surgeon
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  surgeon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: OWNER/commit-surgeon/action@main
+        with:
+          # Leave these out to run heuristics + import graph only (no model, no network beyond GitHub).
+          base-url: https://openrouter.ai/api/v1
+          model: google/gemma-3-27b-it
+          api-key: ${{ secrets.OPENROUTER_API_KEY }}

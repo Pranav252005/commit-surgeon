@@ -1,0 +1,78 @@
+name: Commit Surgeon
+description: Reviews the shape of a pull request - which hunks are needed for the issue, which are cleanup, unrelated or risky - and posts a report.
+author: Commit Surgeon contributors
+branding:
+  icon: scissors
+  color: orange
+
+inputs:
+  base-url:
+    description: OpenAI-compatible endpoint for the hunk judge (Ollama, vLLM, OpenRouter, ...). Empty runs heuristics and the import graph only.
+    default: ""
+  model:
+    description: Model name at that endpoint.
+    default: ""
+  api-key:
+    description: API key for the endpoint, from a secret. Never printed.
+    default: ""
+  comment:
+    description: Post (and keep updated) one comment on the PR. Needs pull-requests write permission.
+    default: "true"
+  github-token:
+    description: Token used for read-only GitHub API calls and the comment.
+    default: ${{ github.token }}
+
+outputs:
+  verdict:
+    description: FOCUSED, SPLIT SUGGESTED, MOSTLY OUT OF SCOPE or UNSCORED
+    value: ${{ steps.run.outputs.verdict }}
+  score:
+    description: Scope score 0-100 (empty when unscored)
+    value: ${{ steps.run.outputs.score }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install Commit Surgeon
+      shell: bash
+      run: python -m pip install --quiet "${{ github.action_path }}/.."
+
+    - name: Analyze the pull request (read-only)
+      id: run
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        SURGEON_API_KEY: ${{ inputs.api-key }}
+        BASE_URL: ${{ inputs.base-url }}
+        MODEL: ${{ inputs.model }}
+        PR_REF: ${{ github.repository }}#${{ github.event.pull_request.number }}
+      run: |
+        args=(analyze "$PR_REF" --quiet --md surgeon-report.md --json surgeon-report.json)
+        if [ -z "$BASE_URL" ]; then
+          args+=(--no-model)
+        else
+          args+=(--base-url "$BASE_URL")
+          [ -n "$MODEL" ] && args+=(--model "$MODEL")
+          [ -n "$SURGEON_API_KEY" ] && args+=(--api-key-env SURGEON_API_KEY)
+        fi
+        surgeon "${args[@]}"
+        cat surgeon-report.md >> "$GITHUB_STEP_SUMMARY"
+        python - <<'PY' >> "$GITHUB_OUTPUT"
+        import json
+        s = json.load(open("surgeon-report.json"))["summary"]
+        print(f"verdict={s['verdict']}")
+        print(f"score={'' if s['score'] is None else s['score']}")
+        PY
+
+    - name: Comment on the pull request
+      if: inputs.comment == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      continue-on-error: true # PRs from forks get a read-only token; the job summary above still has the report
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file surgeon-report.md --edit-last --create-if-none
