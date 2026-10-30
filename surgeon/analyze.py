@@ -40,46 +40,51 @@ class Analysis:
         }
 
 
-def analyze_pr(ref: PRRef, gh: GitHub | None = None, progress=lambda msg: None) -> Analysis:
-    gh = gh or GitHub()
-    t = {}
+def enrich(files: list[diffmod.FileChange], reader: repo.RevReader, pr: PRInfo, issue: IssueInfo | None, timings: dict, notes: list[str], progress=lambda m: None) -> Analysis:
+    """Symbols, import graph, blast radius and heuristics for a diff whose revisions `reader` can read."""
     tick = time.perf_counter()
 
     def lap(name: str) -> None:
         nonlocal tick
         now = time.perf_counter()
-        t[name] = round(now - tick, 2)
+        timings[name] = round(now - tick, 2)
         tick = now
-
-    progress(f"fetching {ref}")
-    pr = gh.pr(ref)
-    diff_text = gh.diff(ref)
-    issue = gh.linked_issue(ref, pr)
-    lap("github")
-    files = diffmod.parse_patch(diff_text)
-    notes: list[str] = []
-    if issue is None:
-        notes.append("no linked issue found: relevance signals use the PR title/body only")
-
-    progress("fetching git objects (shallow)")
-    reader = repo.fetch_pr(ref.owner, ref.repo, ref.number, pr.base_sha, pr.head_sha, gh.token)
-    lap("git_fetch")
 
     progress("mapping hunks to symbols")
     diffmod.attach_symbols(files, reader.read_head, reader.read_base)
     lap("symbols")
 
     progress("building import graph")
-    graph = ImportGraph(reader.tree(pr.base_sha, SOURCE_EXTS))
+    graph = ImportGraph(reader.tree(reader.base, SOURCE_EXTS))
     lap("graph")
     for fc in files:
-        base_path = fc.old_path or fc.path
         for h in fc.hunks:
-            if fc.status == "added":
-                continue
-            h.blast = graph.blast(base_path, h.top_symbol).as_dict()
+            if fc.status != "added":
+                h.blast = graph.blast(fc.old_path or fc.path, h.top_symbol).as_dict()
 
     title, body = (issue.title, issue.body) if issue else (pr.title, pr.body)
     heuristics.apply(files, graph, title, body, "issue" if issue else "pr")
     lap("heuristics")
-    return Analysis(pr, issue, files, t, notes)
+    return Analysis(pr, issue, files, timings, notes)
+
+
+def analyze_pr(ref: PRRef, gh: GitHub | None = None, progress=lambda msg: None) -> Analysis:
+    gh = gh or GitHub()
+    timings: dict[str, float] = {}
+    tick = time.perf_counter()
+
+    progress(f"fetching {ref}")
+    pr = gh.pr(ref)
+    diff_text = gh.diff(ref)
+    issue = gh.linked_issue(ref, pr)
+    timings["github"] = round(time.perf_counter() - tick, 2)
+    files = diffmod.parse_patch(diff_text)
+    notes: list[str] = []
+    if issue is None:
+        notes.append("no linked issue found: relevance signals use the PR title/body only")
+
+    progress("fetching git objects (shallow)")
+    tick = time.perf_counter()
+    reader = repo.fetch_pr(ref.owner, ref.repo, ref.number, pr.base_sha, pr.head_sha, gh.token)
+    timings["git_fetch"] = round(time.perf_counter() - tick, 2)
+    return enrich(files, reader, pr, issue, timings, notes, progress)

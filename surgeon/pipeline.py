@@ -9,6 +9,10 @@ from .github import GitHub, parse_ref
 from .judge import Judge, ModelConfig, judge_hunks
 
 
+class TooLarge(RuntimeError):
+    """More hunks to judge than the caller allowed (model time grows with every hunk)."""
+
+
 def run(
     pr: str,
     *,
@@ -19,10 +23,28 @@ def run(
     risky_importers: int = report.RISKY_IMPORTERS,
     progress=lambda msg: None,
     gh: GitHub | None = None,
+    max_hunks: int | None = None,
 ) -> tuple[Analysis, report.Summary, str | None]:
     """Returns (analysis, summary, model name or None when no model answered)."""
     a = analyze_pr(parse_ref(pr), gh=gh, progress=progress)
+    return judge_analysis(a, no_model=no_model, model=model, base_url=base_url, api_key_env=api_key_env, risky_importers=risky_importers, progress=progress, max_hunks=max_hunks)
+
+
+def judge_analysis(
+    a: Analysis,
+    *,
+    no_model: bool = False,
+    model: str | None = None,
+    base_url: str | None = None,
+    api_key_env: str | None = None,
+    risky_importers: int = report.RISKY_IMPORTERS,
+    progress=lambda msg: None,
+    max_hunks: int | None = None,
+) -> tuple[Analysis, report.Summary, str | None]:
     used_model = None
+    todo = sum(1 for h in a.hunks if h.label is None and not h.pseudo)
+    if max_hunks is not None and not no_model and todo > max_hunks:
+        raise TooLarge(f"too large: {todo} hunks to judge (limit {max_hunks})")
     if not no_model:
         j = Judge(ModelConfig.from_env(model=model, base_url=base_url, api_key_env=api_key_env))
         if j.available():

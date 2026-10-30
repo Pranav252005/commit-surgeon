@@ -12,6 +12,8 @@ from . import repo, report
 from . import split as splitmod
 from .analyze import Analysis
 from .github import GitHub, parse_ref
+from .local import analyze_local
+from .pipeline import judge_analysis
 from .pipeline import run as run_pipeline
 
 app = typer.Typer(add_completion=False, help="Review the shape of a pull request: what it changes, beyond what the issue asked for.")
@@ -143,6 +145,40 @@ def split(
     console.print()
     for line in splitmod.commands(plan, a, out):
         console.print(line, markup=False, highlight=False)
+
+
+@app.command()
+def check(
+    staged: bool = typer.Option(True, "--staged/--no-staged", help="check what is staged (default)"),
+    against: Optional[str] = typer.Option(None, "--against", help="check HEAD against this base ref instead, e.g. origin/main"),
+    issue_title: Optional[str] = typer.Option(None, "--issue-title", help="what the change is supposed to do"),
+    issue_body: str = typer.Option("", "--issue-body"),
+    issue: Optional[int] = typer.Option(None, "--issue", help="GitHub issue number to fetch from origin"),
+    json_out: Optional[Path] = typer.Option(None, "--json", help="machine-readable result ('-' for stdout), for coding agents"),
+    fail_under: Optional[int] = typer.Option(None, "--fail-under", help="exit 1 if the scope score is below this (for a pre-push hook)"),
+    repo_dir: Path = typer.Option(Path("."), "--repo", help="the git repository to check"),
+    no_model: bool = MODEL_OPTS["no_model"],
+    model: Optional[str] = MODEL_OPTS["model"],
+    base_url: Optional[str] = MODEL_OPTS["base_url"],
+    api_key_env: Optional[str] = MODEL_OPTS["api_key_env"],
+    risky_importers: int = MODEL_OPTS["risky_importers"],
+) -> None:
+    """Check your own change before you push it. Local diff, local model: nothing leaves your machine."""
+    try:
+        with console.status("checking…") as st:
+            a = analyze_local(repo_dir, against=against, issue_title=issue_title, issue_body=issue_body, issue_number=issue, progress=lambda m: st.update(f"{m}…"))
+            a, summary, used_model = judge_analysis(a, no_model=no_model, model=model, base_url=base_url, api_key_env=api_key_env, risky_importers=risky_importers, progress=lambda m: st.update(f"{m}…"))
+    except (ValueError, LookupError, RuntimeError, repo.GitError) as e:
+        console.print(f"[red]error:[/red] {e}")
+        raise typer.Exit(2)
+    if json_out is not None:
+        payload = json.dumps({**a.as_dict(), "summary": summary.as_dict(), "model": used_model}, indent=2)
+        print(payload) if str(json_out) == "-" else json_out.write_text(payload)
+    if str(json_out) != "-":
+        report.render_terminal(a, summary, console, used_model)
+    if fail_under is not None and summary.score is not None and summary.score < fail_under:
+        console.print(f"[red]scope score {summary.score} is below --fail-under {fail_under}[/red]")
+        raise typer.Exit(1)
 
 
 def _owner_repo_number(pr: str) -> tuple[str, str, int]:
