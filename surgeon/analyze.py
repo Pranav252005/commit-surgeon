@@ -1,4 +1,5 @@
 """Orchestrates one PR analysis: GitHub -> hunks -> symbols -> import graph -> heuristics."""
+
 from __future__ import annotations
 
 import time
@@ -40,7 +41,15 @@ class Analysis:
         }
 
 
-def enrich(files: list[diffmod.FileChange], reader: repo.RevReader, pr: PRInfo, issue: IssueInfo | None, timings: dict, notes: list[str], progress=lambda m: None) -> Analysis:
+def enrich(
+    files: list[diffmod.FileChange],
+    reader: repo.RevReader,
+    pr: PRInfo,
+    issue: IssueInfo | None,
+    timings: dict,
+    notes: list[str],
+    progress=lambda m: None,
+) -> Analysis:
     """Symbols, import graph, blast radius and heuristics for a diff whose revisions `reader` can read."""
     tick = time.perf_counter()
 

@@ -25,7 +25,7 @@ def test_action_is_a_valid_composite_and_uses_real_cli_flags():
 
 def test_action_never_echoes_the_api_key():
     text = (ROOT / "action/action.yml").read_text()
-    assert "echo $SURGEON_API_KEY" not in text and "echo \"$SURGEON_API_KEY\"" not in text
+    assert "echo $SURGEON_API_KEY" not in text and 'echo "$SURGEON_API_KEY"' not in text
     assert "--api-key-env SURGEON_API_KEY" in text  # the name of the variable, never its value
 
 

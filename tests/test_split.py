@@ -8,7 +8,13 @@ from surgeon.repo import RevReader
 
 
 def git(d: Path, *a: str) -> str:
-    env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin"}
+    env = {
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@t",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@t",
+        "PATH": "/usr/bin:/bin",
+    }
     return subprocess.run(["git", "-C", str(d), *a], capture_output=True, text=True, check=True, env=env).stdout
 
 

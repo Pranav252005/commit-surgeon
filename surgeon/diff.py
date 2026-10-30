@@ -1,4 +1,5 @@
 """Unified diff -> files and hunks, with the enclosing symbol of each hunk."""
+
 from __future__ import annotations
 
 import re
@@ -74,7 +75,7 @@ def parse_patch(diff_text: str) -> list[FileChange]:
     patchset = PatchSet(diff_text)
     if len(headers) != len(patchset):
         headers = [""] * len(patchset)
-    for pf, header in zip(patchset, headers):
+    for pf, header in zip(patchset, headers, strict=True):
         status = _status(pf)
         path = pf.path
         old_path = pf.source_file.removeprefix("a/") if pf.source_file != "/dev/null" else None
@@ -106,10 +107,10 @@ def parse_patch(diff_text: str) -> list[FileChange]:
             )
         binary = bool(getattr(pf, "is_binary_file", False))
         if not hunks:
-            note = "binary file changed" if binary else ("renamed without content change" if status == "renamed" else "metadata-only change")
-            hunks.append(
-                Hunk(f"{path}#0", path, old_path, status, 0, 0, 0, 0, 0, [], [], [], [], note, pseudo=True)
+            note = (
+                "binary file changed" if binary else ("renamed without content change" if status == "renamed" else "metadata-only change")
             )
+            hunks.append(Hunk(f"{path}#0", path, old_path, status, 0, 0, 0, 0, 0, [], [], [], [], note, pseudo=True))
         files.append(FileChange(path, old_path, status, hunks, binary, header))
     return files
 

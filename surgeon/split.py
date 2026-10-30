@@ -3,6 +3,7 @@
 Each patch applies on its own to the base branch (independent PRs). We also prove the split is lossless:
 applying every patch in order to a scratch index must reproduce the PR's head tree.
 """
+
 from __future__ import annotations
 
 import os
@@ -137,7 +138,9 @@ def verify(p: SplitPlan, reader: RevReader) -> None:
             elif not only_binary:
                 p.note = "patches applied but the result differs from the PR head in: " + ", ".join(sorted(differing - set(p.binary))[:5])
             elif p.binary:
-                p.note = f"{len(p.binary)} binary file(s) are not in the patches (a text diff has no content for them): " + ", ".join(p.binary[:3])
+                p.note = f"{len(p.binary)} binary file(s) are not in the patches (a text diff has no content for them): " + ", ".join(
+                    p.binary[:3]
+                )
         else:
             p.lossless = False
 

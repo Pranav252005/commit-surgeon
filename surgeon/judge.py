@@ -5,6 +5,7 @@ LM Studio, OpenRouter, ...). The default is a local Gemma through Ollama, so cod
 Results are cached by (model, prompt). If the model is unreachable, callers get None and fall back to
 heuristics-only output; this module never raises on a model failure.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -45,7 +46,7 @@ class ModelConfig:
     cache: bool = True
 
     @classmethod
-    def from_env(cls, **overrides) -> "ModelConfig":
+    def from_env(cls, **overrides) -> ModelConfig:
         cfg = cls(
             model=os.environ.get("SURGEON_MODEL", DEFAULT_MODEL),
             base_url=os.environ.get("SURGEON_BASE_URL", DEFAULT_BASE_URL),

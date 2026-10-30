@@ -1,4 +1,5 @@
 """Read-only GitHub access. Only GET requests and one GraphQL query; never writes to other people's repos."""
+
 from __future__ import annotations
 
 import os
@@ -128,7 +129,11 @@ class GitHub:
 
     def diff(self, ref: PRRef, base: str | None = None, head: str | None = None) -> str:
         """The PR diff; with base and head, the diff of that commit range (three-dot, so against the merge base)."""
-        path = f"/repos/{ref.owner}/{ref.repo}/pulls/{ref.number}" if head is None else f"/repos/{ref.owner}/{ref.repo}/compare/{base}...{head}"
+        path = (
+            f"/repos/{ref.owner}/{ref.repo}/pulls/{ref.number}"
+            if head is None
+            else f"/repos/{ref.owner}/{ref.repo}/compare/{base}...{head}"
+        )
         return self._get(path, headers={"Accept": "application/vnd.github.v3.diff"}).text
 
     def issue(self, repo: str, number: int, source: str) -> IssueInfo | None:

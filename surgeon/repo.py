@@ -1,4 +1,5 @@
 """Read file contents at a revision straight from git objects. No working-tree checkout, nothing written to the repo."""
+
 from __future__ import annotations
 
 import base64
@@ -91,7 +92,10 @@ def fetch_pr(owner: str, repo: str, number: int, base_sha: str, head_sha: str, t
         git_dir.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(["git", "init", "-q", "--bare", str(git_dir)], check=True)
         run("remote", "add", "origin", f"https://github.com/{owner}/{repo}.git")
-    has = lambda sha: subprocess.run(["git", "-C", str(git_dir), "cat-file", "-e", f"{sha}^{{tree}}"], capture_output=True).returncode == 0
+
+    def has(sha: str) -> bool:
+        return subprocess.run(["git", "-C", str(git_dir), "cat-file", "-e", f"{sha}^{{tree}}"], capture_output=True).returncode == 0
+
     if not has(base_sha):
         run("fetch", "-q", "--depth=1", "--no-tags", "origin", base_sha)
     if not has(head_sha):

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -18,6 +17,7 @@ from .pipeline import run as run_pipeline
 
 app = typer.Typer(add_completion=False, help="Review the shape of a pull request: what it changes, beyond what the issue asked for.")
 console = Console()
+
 
 @app.callback()
 def main() -> None:
@@ -51,9 +51,11 @@ def render_table(a: Analysis, per_hunk: bool = False) -> None:
         imp = "-" if not top else f"{top['direct_non_test']} (+{top['direct'] - top['direct_non_test']} test)"
         tags = dict.fromkeys(t for h in group for t in h.tags if t != first.kind)
         labels = {h.label for h in group if h.label}
-        label = "".join(f"[{LABEL_STYLE.get(l, 'white')}]{l}[/] " for l in sorted(labels))
+        label = "".join(f"[{LABEL_STYLE.get(lab, 'white')}]{lab}[/] " for lab in sorted(labels))
         name = first.id if per_hunk else f"{first.path} [dim]({len(group)})[/dim]"
-        table.add_row(name, sym, first.kind, f"+{sum(h.added for h in group)}/-{sum(h.removed for h in group)}", imp, label + ", ".join(tags))
+        table.add_row(
+            name, sym, first.kind, f"+{sum(h.added for h in group)}/-{sum(h.removed for h in group)}", imp, label + ", ".join(tags)
+        )
     console.print(table)
     console.print(f"[dim]timings (s): {a.timings}[/dim]")
 
@@ -70,23 +72,31 @@ MODEL_OPTS = dict(
 @app.command()
 def analyze(
     pr: str = typer.Argument(..., help="owner/repo#123 or a PR URL"),
-    json_out: Optional[Path] = typer.Option(None, "--json", help="write the full analysis as JSON to this path ('-' for stdout)"),
-    md: Optional[Path] = typer.Option(None, "--md", help="write the Markdown report to this path ('-' for stdout)"),
+    json_out: Path | None = typer.Option(None, "--json", help="write the full analysis as JSON to this path ('-' for stdout)"),
+    md: Path | None = typer.Option(None, "--md", help="write the Markdown report to this path ('-' for stdout)"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="no terminal report"),
     hunks: bool = typer.Option(False, "--hunks", help="heuristics table with one row per hunk (debug view)"),
     no_model: bool = MODEL_OPTS["no_model"],
-    model: Optional[str] = MODEL_OPTS["model"],
-    base_url: Optional[str] = MODEL_OPTS["base_url"],
-    api_key_env: Optional[str] = MODEL_OPTS["api_key_env"],
+    model: str | None = MODEL_OPTS["model"],
+    base_url: str | None = MODEL_OPTS["base_url"],
+    api_key_env: str | None = MODEL_OPTS["api_key_env"],
     risky_importers: int = MODEL_OPTS["risky_importers"],
 ) -> None:
     """Analyze a PR (read-only against GitHub)."""
     try:
         with console.status("analyzing…") as st:
-            a, summary, used_model = run_pipeline(pr, no_model=no_model, model=model, base_url=base_url, api_key_env=api_key_env, risky_importers=risky_importers, progress=lambda m: st.update(f"{m}…"))
+            a, summary, used_model = run_pipeline(
+                pr,
+                no_model=no_model,
+                model=model,
+                base_url=base_url,
+                api_key_env=api_key_env,
+                risky_importers=risky_importers,
+                progress=lambda m: st.update(f"{m}…"),
+            )
     except (ValueError, LookupError, RuntimeError) as e:
         console.print(f"[red]error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     if json_out is not None:
         payload = json.dumps({**a.as_dict(), "summary": summary.as_dict(), "model": used_model}, indent=2)
         if str(json_out) == "-":
@@ -108,16 +118,24 @@ def split(
     pr: str = typer.Argument(..., help="owner/repo#123 or a PR URL"),
     out: Path = typer.Option(Path("surgeon-split"), "--out", help="directory for the .patch files"),
     no_model: bool = MODEL_OPTS["no_model"],
-    model: Optional[str] = MODEL_OPTS["model"],
-    base_url: Optional[str] = MODEL_OPTS["base_url"],
-    api_key_env: Optional[str] = MODEL_OPTS["api_key_env"],
+    model: str | None = MODEL_OPTS["model"],
+    base_url: str | None = MODEL_OPTS["base_url"],
+    api_key_env: str | None = MODEL_OPTS["api_key_env"],
     risky_importers: int = MODEL_OPTS["risky_importers"],
     no_verify: bool = typer.Option(False, "--no-verify", help="skip the git apply checks"),
 ) -> None:
     """Write one patch per group (fix / cleanup / unrelated / risky) and print the commands to apply them."""
     try:
         with console.status("analyzing…") as st:
-            a, summary, used_model = run_pipeline(pr, no_model=no_model, model=model, base_url=base_url, api_key_env=api_key_env, risky_importers=risky_importers, progress=lambda m: st.update(f"{m}…"))
+            a, summary, used_model = run_pipeline(
+                pr,
+                no_model=no_model,
+                model=model,
+                base_url=base_url,
+                api_key_env=api_key_env,
+                risky_importers=risky_importers,
+                progress=lambda m: st.update(f"{m}…"),
+            )
             plan = splitmod.plan(a)
             if not no_verify and plan.groups:
                 st.update("checking that the patches apply…")
@@ -125,7 +143,7 @@ def split(
                 splitmod.verify(plan, reader)
     except (ValueError, LookupError, RuntimeError, repo.GitError) as e:
         console.print(f"[red]error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     console.print(f"[bold]{report.verdict_line(a, summary)}[/bold]")
     if not plan.groups:
         console.print("Nothing to split: no hunk was labelled. Run with a model.")
@@ -139,7 +157,11 @@ def split(
     if plan.skipped:
         console.print(f"[yellow]{len(plan.skipped)} hunk(s) not placed in any patch (unjudged).[/yellow]")
     if plan.lossless is True:
-        console.print("[green]Verified: applying all patches in order reproduces the PR head" + (" (except binary files)." if plan.binary else " exactly.") + "[/green]")
+        console.print(
+            "[green]Verified: applying all patches in order reproduces the PR head"
+            + (" (except binary files)." if plan.binary else " exactly.")
+            + "[/green]"
+        )
         if plan.note:
             console.print(f"[yellow]{plan.note}[/yellow]")
     elif plan.note:
@@ -152,27 +174,42 @@ def split(
 @app.command()
 def check(
     staged: bool = typer.Option(True, "--staged/--no-staged", help="check what is staged (default)"),
-    against: Optional[str] = typer.Option(None, "--against", help="check HEAD against this base ref instead, e.g. origin/main"),
-    issue_title: Optional[str] = typer.Option(None, "--issue-title", help="what the change is supposed to do"),
+    against: str | None = typer.Option(None, "--against", help="check HEAD against this base ref instead, e.g. origin/main"),
+    issue_title: str | None = typer.Option(None, "--issue-title", help="what the change is supposed to do"),
     issue_body: str = typer.Option("", "--issue-body"),
-    issue: Optional[int] = typer.Option(None, "--issue", help="GitHub issue number to fetch from origin"),
-    json_out: Optional[Path] = typer.Option(None, "--json", help="machine-readable result ('-' for stdout), for coding agents"),
-    fail_under: Optional[int] = typer.Option(None, "--fail-under", help="exit 1 if the scope score is below this (for a pre-push hook)"),
+    issue: int | None = typer.Option(None, "--issue", help="GitHub issue number to fetch from origin"),
+    json_out: Path | None = typer.Option(None, "--json", help="machine-readable result ('-' for stdout), for coding agents"),
+    fail_under: int | None = typer.Option(None, "--fail-under", help="exit 1 if the scope score is below this (for a pre-push hook)"),
     repo_dir: Path = typer.Option(Path("."), "--repo", help="the git repository to check"),
     no_model: bool = MODEL_OPTS["no_model"],
-    model: Optional[str] = MODEL_OPTS["model"],
-    base_url: Optional[str] = MODEL_OPTS["base_url"],
-    api_key_env: Optional[str] = MODEL_OPTS["api_key_env"],
+    model: str | None = MODEL_OPTS["model"],
+    base_url: str | None = MODEL_OPTS["base_url"],
+    api_key_env: str | None = MODEL_OPTS["api_key_env"],
     risky_importers: int = MODEL_OPTS["risky_importers"],
 ) -> None:
     """Check your own change before you push it. Local diff, local model: nothing leaves your machine."""
     try:
         with console.status("checking…") as st:
-            a = analyze_local(repo_dir, against=against, issue_title=issue_title, issue_body=issue_body, issue_number=issue, progress=lambda m: st.update(f"{m}…"))
-            a, summary, used_model = judge_analysis(a, no_model=no_model, model=model, base_url=base_url, api_key_env=api_key_env, risky_importers=risky_importers, progress=lambda m: st.update(f"{m}…"))
+            a = analyze_local(
+                repo_dir,
+                against=against,
+                issue_title=issue_title,
+                issue_body=issue_body,
+                issue_number=issue,
+                progress=lambda m: st.update(f"{m}…"),
+            )
+            a, summary, used_model = judge_analysis(
+                a,
+                no_model=no_model,
+                model=model,
+                base_url=base_url,
+                api_key_env=api_key_env,
+                risky_importers=risky_importers,
+                progress=lambda m: st.update(f"{m}…"),
+            )
     except (ValueError, LookupError, RuntimeError, repo.GitError) as e:
         console.print(f"[red]error:[/red] {e}")
-        raise typer.Exit(2)
+        raise typer.Exit(2) from None
     if json_out is not None:
         payload = json.dumps({**a.as_dict(), "summary": summary.as_dict(), "model": used_model}, indent=2)
         print(payload) if str(json_out) == "-" else json_out.write_text(payload)
@@ -181,6 +218,14 @@ def check(
     if fail_under is not None and summary.score is not None and summary.score < fail_under:
         console.print(f"[red]scope score {summary.score} is below --fail-under {fail_under}[/red]")
         raise typer.Exit(1)
+
+
+@app.command()
+def mcp() -> None:
+    """Run an MCP server (stdio) so coding agents can check scope before opening a PR."""
+    from .mcp_server import serve
+
+    serve()
 
 
 def _owner_repo_number(pr: str) -> tuple[str, str, int]:

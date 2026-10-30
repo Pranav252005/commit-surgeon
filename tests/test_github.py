@@ -15,8 +15,16 @@ def client(routes: dict):
 
 
 PULL = {
-    "title": "Fix crash", "body": "Fixes #5", "user": {"login": "u"}, "state": "closed", "merged": True,
-    "base": {"ref": "main", "sha": "TIP"}, "head": {"sha": "HEAD"}, "changed_files": 1, "additions": 2, "deletions": 1,
+    "title": "Fix crash",
+    "body": "Fixes #5",
+    "user": {"login": "u"},
+    "state": "closed",
+    "merged": True,
+    "base": {"ref": "main", "sha": "TIP"},
+    "head": {"sha": "HEAD"},
+    "changed_files": 1,
+    "additions": 2,
+    "deletions": 1,
     "html_url": "https://github.com/o/r/pull/9",
 }
 ISSUE = {"title": "Crash", "body": "it crashes", "html_url": "https://github.com/o/r/issues/5"}
@@ -37,7 +45,12 @@ def test_parse_ref_rejects_garbage(text):
 
 
 def test_pr_diff_base_is_the_merge_base_not_the_branch_tip():
-    gh = client({"/repos/o/r/pulls/9": httpx.Response(200, json=PULL), "/repos/o/r/compare/": httpx.Response(200, json={"merge_base_commit": {"sha": "MB"}})})
+    gh = client(
+        {
+            "/repos/o/r/pulls/9": httpx.Response(200, json=PULL),
+            "/repos/o/r/compare/": httpx.Response(200, json={"merge_base_commit": {"sha": "MB"}}),
+        }
+    )
     pr = gh.pr(PRRef("o", "r", 9))
     assert pr.base_sha == "MB" and pr.base_tip_sha == "TIP" and pr.head_sha == "HEAD" and pr.state == "merged"
 

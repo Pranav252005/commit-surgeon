@@ -19,6 +19,11 @@ dependencies = [
 [project.scripts]
 surgeon = "surgeon.cli:app"
 
+[project.optional-dependencies]
+mcp = [
+    "mcp>=2,<3",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8",
@@ -32,3 +37,17 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["surgeon"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008"]  # B008: typer's Option()/Argument() defaults are the intended API
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_diff.py" = ["W293"]  # blank context lines in the sample patches must keep their space
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

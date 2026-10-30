@@ -1,4 +1,5 @@
 """One call that does the whole job: analyze, judge, summarize. Shared by the CLI, the Action and the eval."""
+
 from __future__ import annotations
 
 import time
@@ -28,7 +29,16 @@ def run(
 ) -> tuple[Analysis, report.Summary, str | None]:
     """Returns (analysis, summary, model name or None when no model answered)."""
     a = analyze_pr(parse_ref(pr), gh=gh, progress=progress, head_sha=head_sha)
-    return judge_analysis(a, no_model=no_model, model=model, base_url=base_url, api_key_env=api_key_env, risky_importers=risky_importers, progress=progress, max_hunks=max_hunks)
+    return judge_analysis(
+        a,
+        no_model=no_model,
+        model=model,
+        base_url=base_url,
+        api_key_env=api_key_env,
+        risky_importers=risky_importers,
+        progress=progress,
+        max_hunks=max_hunks,
+    )
 
 
 def judge_analysis(

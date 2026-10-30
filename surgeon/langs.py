@@ -1,9 +1,10 @@
 """Symbol and import extraction. tree-sitter first, regex fallback for imports."""
+
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from pathlib import PurePosixPath
 
 PY_EXTS = {".py"}
@@ -39,7 +40,7 @@ def language_of(path: str) -> str | None:
     return None
 
 
-@lru_cache(maxsize=None)
+@cache
 def _parser(lang: str, tsx: bool, ts: bool):
     try:
         from tree_sitter import Language, Parser

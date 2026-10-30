@@ -1,4 +1,5 @@
 """Verdict, scope score and the grouped report (terminal and Markdown)."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

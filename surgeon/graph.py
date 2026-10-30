@@ -1,4 +1,5 @@
 """Reverse-import graph and blast radius. Built from the base revision so it reflects who depends on the code today."""
+
 from __future__ import annotations
 
 import posixpath
@@ -69,7 +70,7 @@ class ImportGraph:
 
     def _py_module(self, dotted: str, base_dir: str | None = None) -> str | None:
         rel = dotted.replace(".", "/")
-        for root in ([base_dir] if base_dir is not None else self.py_roots):
+        for root in [base_dir] if base_dir is not None else self.py_roots:
             stem = posixpath.join(root, rel) if rel else root
             cands = (f"{stem}.py", posixpath.join(stem, "__init__.py")) if rel else (posixpath.join(stem, "__init__.py"),)
             for cand in cands:

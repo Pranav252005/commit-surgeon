@@ -4,7 +4,27 @@ from surgeon.diff import Hunk
 
 
 def hunk(id, label, added=10, removed=0, kind="code", tags=None, blast=None, pseudo=False):
-    h = Hunk(id, id.split("#")[0], None, "modified", 0, 1, 1, added, removed, [], [], [], [], "", kind=kind, tags=tags or [kind], label=label, blast=blast, pseudo=pseudo)
+    h = Hunk(
+        id,
+        id.split("#")[0],
+        None,
+        "modified",
+        0,
+        1,
+        1,
+        added,
+        removed,
+        [],
+        [],
+        [],
+        [],
+        "",
+        kind=kind,
+        tags=tags or [kind],
+        label=label,
+        blast=blast,
+        pseudo=pseudo,
+    )
     return h
 
 

@@ -8,7 +8,14 @@ from typer.testing import CliRunner
 from surgeon.cli import app
 from surgeon.local import analyze_local
 
-ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin", "HOME": "/nonexistent"}
+ENV = {
+    "GIT_AUTHOR_NAME": "t",
+    "GIT_AUTHOR_EMAIL": "t@t",
+    "GIT_COMMITTER_NAME": "t",
+    "GIT_COMMITTER_EMAIL": "t@t",
+    "PATH": "/usr/bin:/bin",
+    "HOME": "/nonexistent",
+}
 
 
 def git(d: Path, *a: str) -> str:

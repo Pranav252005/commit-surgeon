@@ -1,5 +1,6 @@
 """Check your own change before you push: staged changes, or HEAD against a base ref. Never touches the network
 unless you ask it to fetch the linked issue."""
+
 from __future__ import annotations
 
 import re
@@ -9,13 +10,21 @@ from pathlib import Path
 
 from . import diff as diffmod
 from .analyze import Analysis, enrich
-from .github import GitHub, IssueInfo, PRInfo, PRRef
+from .github import GitHub, IssueInfo, PRInfo
 from .repo import GitError, RevReader
 
 _ISSUE_RE = re.compile(r"(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?|for)\b[:\s]+#(\d+)", re.I)
 
 
-DIFF_ARGS = ["-c", "core.quotePath=false", "diff", "--no-color", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/"]  # user config (mnemonicPrefix, noprefix) must not change the paths
+DIFF_ARGS = [
+    "-c",
+    "core.quotePath=false",
+    "diff",
+    "--no-color",
+    "--no-ext-diff",
+    "--src-prefix=a/",
+    "--dst-prefix=b/",
+]  # user config (mnemonicPrefix, noprefix) must not change the paths
 
 
 def _git(repo_dir: Path, *args: str) -> str:
@@ -85,8 +94,17 @@ def analyze_local(
 
     files = diffmod.parse_patch(diff_text)
     pr = PRInfo(
-        ref=f"local:{label}", title=subject, body=body, author="", state="local", base_ref=against or "HEAD",
-        base_sha=base, head_sha=head, changed_files=len(files),
-        additions=sum(h.added for f in files for h in f.hunks), deletions=sum(h.removed for f in files for h in f.hunks), url="",
+        ref=f"local:{label}",
+        title=subject,
+        body=body,
+        author="",
+        state="local",
+        base_ref=against or "HEAD",
+        base_sha=base,
+        head_sha=head,
+        changed_files=len(files),
+        additions=sum(h.added for f in files for h in f.hunks),
+        deletions=sum(h.removed for f in files for h in f.hunks),
+        url="",
     )
     return enrich(files, RevReader(git_dir, base, head), pr, issue, {"diff": round(time.perf_counter() - t0, 2)}, notes, progress)
