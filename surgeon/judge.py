@@ -30,6 +30,9 @@ Labels:
 - cleanup: a tidy-up the issue did not ask for (formatting, renames, refactors, dead code, typo fixes elsewhere).
 - unrelated: a different feature or fix that the issue did not ask for.
 
+Be skeptical. A hunk is "needed" only if the issue could not be resolved without it. New examples, tutorials,
+extra options, drive-by refactors and style changes are not needed unless the issue asks for them.
+
 Reply with JSON only: {"label": "needed|cleanup|unrelated", "confidence": 0.0-1.0, "reason": "max 20 words"}."""
 
 
@@ -62,7 +65,7 @@ class Verdict:
     cached: bool = False
 
 
-def build_prompt(hunk: Hunk, pr_title: str, issue_title: str, issue_body: str, max_hunk: int = 3500, max_issue: int = 1500) -> str:
+def build_prompt(hunk: Hunk, pr_title: str, issue_title: str, issue_body: str, max_hunk: int = 2500, max_issue: int = 1200) -> str:
     body = re.sub(r"\s+\n", "\n", issue_body.strip())[:max_issue]
     text = hunk.text if len(hunk.text) <= max_hunk else hunk.text[:max_hunk] + "\n[... hunk truncated ...]"
     where = f"{hunk.path}" + (f" in `{hunk.symbol}`" if hunk.symbol else "")

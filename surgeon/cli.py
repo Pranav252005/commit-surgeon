@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 from typing import Optional
 
@@ -11,9 +10,9 @@ from rich.table import Table
 
 from . import repo, report
 from . import split as splitmod
-from .analyze import Analysis, analyze_pr
+from .analyze import Analysis
 from .github import GitHub, parse_ref
-from .judge import Judge, ModelConfig, judge_hunks
+from .pipeline import run as run_pipeline
 
 app = typer.Typer(add_completion=False, help="Review the shape of a pull request: what it changes, beyond what the issue asked for.")
 console = Console()
@@ -57,23 +56,6 @@ def render_table(a: Analysis, per_hunk: bool = False) -> None:
     console.print(f"[dim]timings (s): {a.timings}[/dim]")
 
 
-def _pipeline(pr, no_model, model, base_url, api_key_env, risky_importers, st):
-    """Analyze, judge and summarize. Returns (analysis, summary, model name or None)."""
-    a = analyze_pr(parse_ref(pr), progress=lambda m: st.update(f"{m}…"))
-    used_model = None
-    if not no_model:
-        j = Judge(ModelConfig.from_env(model=model, base_url=base_url, api_key_env=api_key_env))
-        if j.available():
-            title, body = (a.issue.title, a.issue.body) if a.issue else (a.pr.title, a.pr.body)
-            t0 = time.perf_counter()
-            judge_hunks(a.hunks, j, a.pr.title, title, body, lambda i, n: st.update(f"asking {j.cfg.model} ({i}/{n})…"))
-            a.timings["model"] = round(time.perf_counter() - t0, 2)
-            used_model = j.cfg.model
-        else:
-            a.notes.append(f"{j.error or 'model unavailable'}: showing heuristics only. Start `ollama serve` or pass --base-url.")
-    return a, report.summarize(a, risky_importers), used_model
-
-
 MODEL_OPTS = dict(
     no_model=typer.Option(False, "--no-model", help="heuristics and import graph only"),
     model=typer.Option(None, "--model", help="model name (default: $SURGEON_MODEL or gemma3:4b)"),
@@ -99,7 +81,7 @@ def analyze(
     """Analyze a PR (read-only against GitHub)."""
     try:
         with console.status("analyzing…") as st:
-            a, summary, used_model = _pipeline(pr, no_model, model, base_url, api_key_env, risky_importers, st)
+            a, summary, used_model = run_pipeline(pr, no_model=no_model, model=model, base_url=base_url, api_key_env=api_key_env, risky_importers=risky_importers, progress=lambda m: st.update(f"{m}…"))
     except (ValueError, LookupError, RuntimeError) as e:
         console.print(f"[red]error:[/red] {e}")
         raise typer.Exit(1)
@@ -133,7 +115,7 @@ def split(
     """Write one patch per group (fix / cleanup / unrelated / risky) and print the commands to apply them."""
     try:
         with console.status("analyzing…") as st:
-            a, summary, used_model = _pipeline(pr, no_model, model, base_url, api_key_env, risky_importers, st)
+            a, summary, used_model = run_pipeline(pr, no_model=no_model, model=model, base_url=base_url, api_key_env=api_key_env, risky_importers=risky_importers, progress=lambda m: st.update(f"{m}…"))
             plan = splitmod.plan(a)
             if not no_verify and plan.groups:
                 st.update("checking that the patches apply…")
