@@ -25,7 +25,7 @@ from pathlib import Path
 # prune each repo once its PRs are done, so the bench never fills the real disk. Override with SURGEON_CACHE_DIR.
 os.environ.setdefault("SURGEON_CACHE_DIR", "/tmp/surgeon-bench-cache")
 
-from surgeon import pipeline  # noqa: E402
+from surgeon import pipeline, repo  # noqa: E402
 from surgeon.judge import ModelConfig
 
 HERE = Path(__file__).parent
@@ -87,6 +87,8 @@ def evaluate_pr(pr: dict, label: dict, args) -> dict:
         )
     except pipeline.TooLarge as e:
         return {**rec, "error": str(e), "skipped": True}
+    except (LookupError, repo.GitError) as e:  # the commit the maintainer saw was force-pushed away or deleted: permanent
+        return {**rec, "error": f"commit unavailable: {e}"[:200], "skipped": True}
     except Exception as e:  # keep going: one bad PR must not sink the run
         return {**rec, "error": f"{type(e).__name__}: {e}"[:200]}
     objected = objected_hunk_ids(a, label["objected"]) if label["objected"] else set()
