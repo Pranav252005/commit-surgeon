@@ -34,7 +34,7 @@ Labels:
 Be skeptical. A hunk is "needed" only if the issue could not be resolved without it. New examples, tutorials,
 extra options, drive-by refactors and style changes are not needed unless the issue asks for them.
 
-Reply with JSON only: {"label": "needed|cleanup|unrelated", "confidence": 0.0-1.0, "reason": "max 20 words"}."""
+Reply with JSON only: {"label": "needed|cleanup|unrelated", "confidence": 0.0-1.0, "reason": "max 15 words"}."""
 
 
 @dataclass
@@ -132,7 +132,7 @@ class Judge:
             "model": self.cfg.model,
             "temperature": 0,
             "stream": False,
-            "max_tokens": 120,
+            "max_tokens": 80,
             "response_format": {"type": "json_object"},
             "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
         }
