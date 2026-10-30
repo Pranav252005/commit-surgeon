@@ -34,6 +34,8 @@ def apply_risky(hunks: list[Hunk], threshold: int = RISKY_IMPORTERS) -> None:
     """A stray change (cleanup/unrelated) inside a module many files import is risky, not merely noisy."""
     for h in hunks:
         b = h.blast or {}
+        if "whitespace_only" in h.tags:  # reformatting cannot break an importer
+            continue
         if h.label in {"cleanup", "unrelated"} and h.kind == "code" and b.get("direct_non_test", 0) >= threshold:
             used = b.get("symbol_importers")
             if used == 0:  # private symbol nobody outside the module uses: not risky for importers
@@ -85,6 +87,11 @@ def _item(group: list[Hunk]) -> tuple[str, str, str]:
     n = f" ({len(group)} hunks)" if len(group) > 1 else ""
     size = f"+{sum(g.added for g in group)}/-{sum(g.removed for g in group)}"
     reason = next((g.reason for g in group if g.reason), "")
+    if h.label is None:  # no model answer: show what the heuristics did find
+        sig = [t.replace("_", " ") for t in dict.fromkeys(t for g in group for t in g.tags if t != h.kind and not t.startswith("model:"))]
+        b = max((g.blast for g in group if g.blast), key=lambda b: b.get("direct_non_test", 0), default=None)
+        ev = b["evidence"] if b and b.get("direct_non_test") else ""
+        reason = "; ".join(x for x in [", ".join(sig), ev] if x)
     return f"{where}{n}", size, reason
 
 
@@ -132,7 +139,7 @@ def render_terminal(a: Analysis, s: Summary, console, model: str | None, per_hun
 
 def render_markdown(a: Analysis, s: Summary, model: str | None) -> str:
     pr = a.pr
-    out = [f"## Commit Surgeon: {s.verdict}", "", f"**{verdict_line(a, s)}**", "", friendly(a, s), ""]
+    out = ["<!-- commit-surgeon -->", f"## Commit Surgeon: {s.verdict}", "", f"**{verdict_line(a, s)}**", "", friendly(a, s), ""]
     out.append(f"PR: `{pr.ref}` {pr.title}  ")
     if a.issue:
         out.append(f"Issue: #{a.issue.number} {a.issue.title}")
