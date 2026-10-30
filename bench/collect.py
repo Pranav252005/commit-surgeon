@@ -6,6 +6,7 @@ before they count: run `python bench/collect.py --review` to print them.
 
     uv run python bench/collect.py --min-stars 1000 --target 40
 """
+
 from __future__ import annotations
 
 import argparse
@@ -158,7 +159,11 @@ def label_for(p: dict) -> dict:
     return {
         "ref": p["ref"],
         "reviewed": False,
-        "objected": [{"path": o["path"], "line": o["line"], "side": o["side"], "commit": o.get("commit"), "quote": o["quote"][:200]} for o in p["objections"] if o["path"]],
+        "objected": [
+            {"path": o["path"], "line": o["line"], "side": o["side"], "commit": o.get("commit"), "quote": o["quote"][:200]}
+            for o in p["objections"]
+            if o["path"]
+        ],
         "pr_level_objection": any(not o["path"] for o in p["objections"]),
     }
 

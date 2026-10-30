@@ -9,6 +9,7 @@ and line. We map each anchor to the hunk containing that line (or to every hunk 
 outdated). A hunk the maintainer did not mention is NOT assumed to be in scope, so precision is a lower bound.
 Runs one PR at a time on purpose (one model, one GPU).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -60,7 +61,9 @@ def evaluate_pr(pr: dict, label: dict, args) -> dict:
         label = {**label, "objected": [o for o in label["objected"] if o.get("commit") == at]}
     rec["at_commit"] = at
     try:
-        a, summary, used = pipeline.run(pr["ref"], no_model=args.no_model, model=args.model, base_url=args.base_url, max_hunks=args.max_hunks, head_sha=at)
+        a, summary, used = pipeline.run(
+            pr["ref"], no_model=args.no_model, model=args.model, base_url=args.base_url, max_hunks=args.max_hunks, head_sha=at
+        )
     except pipeline.TooLarge as e:
         return {**rec, "error": str(e), "skipped": True}
     except Exception as e:  # keep going: one bad PR must not sink the run
@@ -138,17 +141,122 @@ def write_report() -> None:
         "did not mention as a miss, so it understates quality. *flag-everything precision* is the dumb baseline: the share of hunks the maintainers objected to.",
     ]
     for name, (data, agg) in per_model.items():
-        lines += ["", f"## {name}", "", f"PRs without a file-anchored objection (verdict-only check): {agg['pr_level_not_focused']} of {agg['pr_level_prs']} not FOCUSED. "
-                  f"Skipped as too large: {agg['prs_skipped_large']}. Errored PRs: {agg['prs_errored']}. Unjudged hunks: {agg['unjudged_hunks']}.", "",
-                  "| PR | hunks | objected | flagged | hit | verdict | s |", "|---|---|---|---|---|---|---|"]
+        lines += [
+            "",
+            f"## {name}",
+            "",
+            f"PRs without a file-anchored objection (verdict-only check): {agg['pr_level_not_focused']} of {agg['pr_level_prs']} not FOCUSED. "
+            f"Skipped as too large: {agg['prs_skipped_large']}. Errored PRs: {agg['prs_errored']}. Unjudged hunks: {agg['unjudged_hunks']}.",
+            "",
+            "| PR | hunks | objected | flagged | hit | verdict | s |",
+            "|---|---|---|---|---|---|---|",
+        ]
         for r in data["results"]:
             if "error" in r:
                 lines.append(f"| [{r['ref']}]({r['url']}) | error: {r['error'][:60]} | | | | | |")
                 continue
             hit = "yes" if set(r["objected"]) & set(r["flagged"]) else ("n/a" if not r["objected"] else "MISS")
-            lines.append(f"| [{r['ref']}]({r['url']}) | {r['hunks']} | {len(r['objected'])} | {len(r['flagged'])} | {hit} | {r['verdict']} | {r['seconds']} |")
+            lines.append(
+                f"| [{r['ref']}]({r['url']}) | {r['hunks']} | {len(r['objected'])} | {len(r['flagged'])} | {hit} | {r['verdict']} | {r['seconds']} |"
+            )
     (HERE / "RESULTS.md").write_text("\n".join(lines) + "\n")
     print(f"wrote {HERE / 'RESULTS.md'}")
+    write_leaderboard()
+
+
+def baseline_row(recs: list[dict]) -> dict:
+    """The dumb baseline: flag every hunk. Perfect recall, precision equal to the base rate of objected hunks."""
+    anchored = [r for r in recs if "error" not in r and r["objected"]]
+    pos = sum(len(r["objected"]) for r in anchored)
+    total = sum(r["hunks"] for r in anchored)
+    prec = pos / total if total else 0.0
+    return {
+        "name": "flag everything (baseline)",
+        "anchored_prs": len(anchored),
+        "agreed": len(anchored),
+        "recall": 1.0,
+        "precision": round(prec, 3),
+        "f1": round(2 * prec / (prec + 1), 3) if total else 0.0,
+        "median_seconds": 0,
+        "pr_level": "-",
+    }
+
+
+def write_leaderboard() -> None:
+    """Rank every model that has results on the PRs all of them completed. Ranked by hunk-level F1."""
+    all_results = {}
+    for f in sorted(RESULTS.glob("*.json")):
+        data = json.loads(f.read_text())
+        all_results[data["name"]] = data["results"]
+    models = {n: r for n, r in all_results.items() if n != "heuristics-only"}
+    if not models:
+        return
+    ok_sets = [{r["ref"] for r in recs if "error" not in r} for recs in models.values()]
+    common = set.intersection(*ok_sets) if ok_sets else set()
+    rows = []
+    for name, recs in {
+        **models,
+        **({"heuristics-only": all_results["heuristics-only"]} if "heuristics-only" in all_results else {}),
+    }.items():
+        sub = [r for r in recs if r["ref"] in common]
+        agg = aggregate(sub)
+        rows.append(
+            {
+                "name": name,
+                "anchored_prs": agg["anchored_prs"],
+                "agreed": agg["agreed"],
+                "recall": agg["recall"],
+                "precision": agg["precision"],
+                "f1": agg["f1"],
+                "median_seconds": agg["median_seconds"],
+                "pr_level": f"{agg['pr_level_not_focused']}/{agg['pr_level_prs']}",
+                "model_based": name != "heuristics-only",
+            }
+        )
+    first = next(iter(models.values()))
+    base = baseline_row([r for r in first if r["ref"] in common])
+    ranked = sorted([r for r in rows if r["model_based"]], key=lambda r: (-r["f1"], -r["agreed"], r["median_seconds"] or 0))
+    others = [r for r in rows if not r["model_based"]] + [base]
+    (HERE / "leaderboard.json").write_text(json.dumps({"common_prs": sorted(common), "ranked": ranked, "baselines": others}, indent=1))
+    L = [
+        "# ScopeBench leaderboard",
+        "",
+        f"Models ranked by hunk-level F1 on the {len(common)} bench PRs every listed model completed (PRs the tool skipped as too large or that errored are excluded for all).",
+        "Each PR is analyzed as the maintainer saw it, at the commit they commented on. Same prompt, same settings, temperature 0, one run per model.",
+        "",
+    ]
+    if ranked:
+        b = ranked[0]
+        L += [
+            f"**Best model: `{b['name']}`** (F1 {b['f1']:.2f}, recall {b['recall']:.0%}, agreed on {b['agreed']} of {b['anchored_prs']} PRs).",
+            "",
+        ]
+    L += [
+        "| # | model | agreed (>=1 objected hunk flagged) | hunk recall | hunk precision (lower bound) | F1 | PR-level not-FOCUSED | median s/PR |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for i, r in enumerate(ranked, 1):
+        L.append(
+            f"| {i} | `{r['name']}` | {r['agreed']} of {r['anchored_prs']} | {r['recall']:.0%} | {r['precision']:.0%} | {r['f1']:.2f} | {r['pr_level']} | {r['median_seconds']} |"
+        )
+    L += ["", "Baselines (no model):", "", "| | agreed | recall | precision | F1 |", "|---|---|---|---|---|"]
+    for r in others:
+        L.append(f"| {r['name']} | {r['agreed']} of {r['anchored_prs']} | {r['recall']:.0%} | {r['precision']:.0%} | {r['f1']:.2f} |")
+    L += [
+        "",
+        "Precision is a lower bound: a hunk the maintainer did not mention is counted as a miss even if it is out of scope too.",
+        "A model that beats `flag everything` on F1 is doing more than guessing.",
+        "",
+        "## Add your model",
+        "",
+        "```bash",
+        "uv run python bench/run_eval.py --model <name> --base-url <openai-compatible endpoint>/v1",
+        "```",
+        "Then commit the new `bench/results/<name>.json` and the regenerated `LEADERBOARD.md` in a PR. Same bench, same prompt.",
+        "",
+    ]
+    (HERE / "LEADERBOARD.md").write_text("\n".join(L))
+    print(f"wrote {HERE / 'LEADERBOARD.md'}")
 
 
 def main() -> None:
@@ -181,7 +289,11 @@ def main() -> None:
         print(f"[{i}/{len(todo)}] {pr['ref']} ", end="", flush=True)
         rec = evaluate_pr(pr, labels[pr["ref"]], args)
         recs.append(rec)
-        print(rec.get("error") or f"hunks={rec['hunks']} hit={'yes' if set(rec['objected']) & set(rec['flagged']) else 'no'} {rec['seconds']}s", flush=True)
+        print(
+            rec.get("error")
+            or f"hunks={rec['hunks']} hit={'yes' if set(rec['objected']) & set(rec['flagged']) else 'no'} {rec['seconds']}s",
+            flush=True,
+        )
         out.write_text(json.dumps({"name": name, "results": recs}, indent=1))  # resumable
     write_report()
 
