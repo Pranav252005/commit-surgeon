@@ -6,16 +6,21 @@ way hunks can be separated, so any offset or header bug shows up on real diffs.
 
     uv run python bench/stress.py [--seed 1] [--limit N]
 """
+
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
+import shutil
 import time
 import traceback
 from pathlib import Path
 
-from surgeon import pipeline, repo, split
+os.environ.setdefault("XDG_CACHE_HOME", "/tmp/surgeon-bench-cache")  # RAM-backed: keep clones off the real disk
+
+from surgeon import pipeline, repo, split  # noqa: E402
 from surgeon.github import GitHub, parse_ref
 
 HERE = Path(__file__).parent
@@ -47,7 +52,11 @@ def main() -> None:
             ok = plan.lossless and all(g.applies for g in plan.groups)
             status = "ok " if ok else "BAD"
             bad += not ok
-            print(f"{status} {pr['ref']:42} hunks={len(a.hunks):4} {groups} {round(time.perf_counter() - t0, 1)}s {'' if ok else plan.note}", flush=True)
+            shutil.rmtree(Path(os.environ["XDG_CACHE_HOME"]) / "surgeon" / f"{ref.owner}__{ref.repo}.git", ignore_errors=True)
+            print(
+                f"{status} {pr['ref']:42} hunks={len(a.hunks):4} {groups} {round(time.perf_counter() - t0, 1)}s {'' if ok else plan.note}",
+                flush=True,
+            )
         except Exception as e:
             bad += 1
             print(f"ERR {pr['ref']:42} {type(e).__name__}: {str(e)[:150]}", flush=True)

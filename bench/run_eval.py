@@ -14,12 +14,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
 import statistics
 import time
 from pathlib import Path
 
-from surgeon import pipeline
+# Shallow clones of ~35 repos (cpython, pytorch, home-assistant, ...) add up to GBs. Keep them in RAM-backed /tmp and
+# prune each repo once its PRs are done, so the bench never fills the real disk. Override with XDG_CACHE_HOME.
+os.environ.setdefault("XDG_CACHE_HOME", "/tmp/surgeon-bench-cache")
+
+from surgeon import pipeline  # noqa: E402
 from surgeon.judge import ModelConfig
 
 HERE = Path(__file__).parent
@@ -275,6 +281,7 @@ def main() -> None:
     prs = [json.loads(x) for x in (HERE / "prs.jsonl").read_text().splitlines()]
     labels = {json.loads(x)["ref"]: json.loads(x) for x in (HERE / "labels.jsonl").read_text().splitlines()}
     todo = [p for p in prs if labels[p["ref"]].get("reviewed") or args.include_unreviewed]
+    todo.sort(key=lambda p: p["ref"].split("#")[0])  # same repo together, so its clone can be pruned as soon as it is done
     if args.limit:
         todo = todo[: args.limit]
     name = "heuristics-only" if args.no_model else (args.model or ModelConfig.from_env().model)
@@ -295,6 +302,10 @@ def main() -> None:
             flush=True,
         )
         out.write_text(json.dumps({"name": name, "results": recs}, indent=1))  # resumable
+        nxt = todo[i]["ref"].split("#")[0] if i < len(todo) else None
+        if nxt != pr["ref"].split("#")[0]:
+            owner, repo = pr["ref"].split("#")[0].split("/")
+            shutil.rmtree(Path(os.environ["XDG_CACHE_HOME"]) / "surgeon" / f"{owner}__{repo}.git", ignore_errors=True)
     write_report()
 
 

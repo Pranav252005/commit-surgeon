@@ -5,6 +5,7 @@ therefore analyzes the PR at the commented commit. This matches each stored obje
 
     uv run python bench/enrich.py
 """
+
 from __future__ import annotations
 
 import json
