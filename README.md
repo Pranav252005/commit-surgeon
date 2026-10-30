@@ -51,6 +51,34 @@ uv run surgeon split owner/repo#123 --out patches  # patches + the git commands 
 
 GitHub access is read-only. The token comes from `GITHUB_TOKEN`, `GH_TOKEN` or `gh auth token`; without one you hit the unauthenticated rate limit.
 
+### Check your own change before you push
+
+```bash
+git add -p                                          # stage what you mean to ship
+surgeon check --issue-title "Fix crash in parse()"  # staged changes vs the issue
+surgeon check --against origin/main --issue 123     # HEAD vs a base branch, issue fetched from origin
+surgeon check --json -                              # stable JSON for scripts and coding agents
+surgeon check --fail-under 80                       # exit 1 below this scope score: a pre-push hook
+```
+
+Everything runs on your machine. The issue is only fetched from GitHub if you pass `--issue N`.
+
+### For coding agents (MCP)
+
+`surgeon mcp` is an MCP server (stdio) with one tool, `check_scope`. An agent calls it before opening a PR,
+trims the hunks it labels cleanup / unrelated / risky, and checks again.
+
+```bash
+pip install "commit-surgeon[mcp]"
+claude mcp add commit-surgeon -- surgeon mcp       # or add the same command to Codex / Cursor
+```
+
+### GitHub Action
+
+`action/action.yml` runs the analysis on every PR in your repo and keeps one comment up to date.
+See `examples/surgeon.yml`. Without a `base-url` it runs the heuristics and import graph only (no model);
+point `base-url` at any OpenAI-compatible endpoint to get the full labels. It only ever comments on the PR it runs for.
+
 ### Any open model
 
 The judge speaks the OpenAI chat-completions API, so anything that serves it works: Ollama (default), llama.cpp,
@@ -68,8 +96,13 @@ With the default local model your code never leaves your machine.
 ## Evaluation (ScopeBench)
 
 `bench/` holds real PRs where a maintainer asked for a split or called a change out of scope, with the file and
-line they pointed at. `bench/run_eval.py` runs the tool on them and `bench/RESULTS.md` has the measured numbers,
-including the misses. Run it with any model to compare models.
+line they pointed at. Each PR is analyzed *as the maintainer saw it*, at the commit they commented on, because
+authors often remove the flagged code later. Collection is scripted (`bench/collect.py`), curation is by hand
+(`bench/curate.py` records every decision, and the PRs where a maintainer merely deferred a contributor's idea were left out).
+
+- [`bench/LEADERBOARD.md`](bench/LEADERBOARD.md): models ranked on the same PRs, with the best model named and a flag-everything baseline.
+- [`bench/RESULTS.md`](bench/RESULTS.md): per-PR results for every model, including the misses.
+- Add your model: `bench/leaderboard.sh <ollama-model>` or `bench/run_eval.py --model <name> --base-url <endpoint>`, then open a PR with the new results file.
 
 ## AI tools used
 
