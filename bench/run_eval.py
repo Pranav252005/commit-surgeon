@@ -53,8 +53,16 @@ def objected_hunk_ids(a, objected: list[dict]) -> set[str]:
 def evaluate_pr(pr: dict, label: dict, args) -> dict:
     t0 = time.perf_counter()
     rec = {"ref": pr["ref"], "title": pr["title"], "url": pr["url"]}
+    # the PR as the maintainer saw it: at the commit they commented on (the author may have changed the code since)
+    commits = [o["commit"] for o in label["objected"] if o.get("commit")]
+    at = max(set(commits), key=commits.count) if commits else None
+    if at:
+        label = {**label, "objected": [o for o in label["objected"] if o.get("commit") == at]}
+    rec["at_commit"] = at
     try:
-        a, summary, used = pipeline.run(pr["ref"], no_model=args.no_model, model=args.model, base_url=args.base_url)
+        a, summary, used = pipeline.run(pr["ref"], no_model=args.no_model, model=args.model, base_url=args.base_url, max_hunks=args.max_hunks, head_sha=at)
+    except pipeline.TooLarge as e:
+        return {**rec, "error": str(e), "skipped": True}
     except Exception as e:  # keep going: one bad PR must not sink the run
         return {**rec, "error": f"{type(e).__name__}: {e}"[:200]}
     objected = objected_hunk_ids(a, label["objected"]) if label["objected"] else set()
@@ -90,7 +98,8 @@ def aggregate(recs: list[dict]) -> dict:
     rec_ = tp / pos if pos else 0.0
     return {
         "prs_total": len(recs),
-        "prs_errored": len(recs) - len(ok),
+        "prs_errored": sum(1 for r in recs if "error" in r and not r.get("skipped")),
+        "prs_skipped_large": sum(1 for r in recs if r.get("skipped")),
         "anchored_prs": len(anchored),
         "agreed": agreed,
         "precision": round(prec, 3),
@@ -130,7 +139,7 @@ def write_report() -> None:
     ]
     for name, (data, agg) in per_model.items():
         lines += ["", f"## {name}", "", f"PRs without a file-anchored objection (verdict-only check): {agg['pr_level_not_focused']} of {agg['pr_level_prs']} not FOCUSED. "
-                  f"Errored PRs: {agg['prs_errored']}. Unjudged hunks: {agg['unjudged_hunks']}.", "",
+                  f"Skipped as too large: {agg['prs_skipped_large']}. Errored PRs: {agg['prs_errored']}. Unjudged hunks: {agg['unjudged_hunks']}.", "",
                   "| PR | hunks | objected | flagged | hit | verdict | s |", "|---|---|---|---|---|---|---|"]
         for r in data["results"]:
             if "error" in r:
@@ -163,7 +172,8 @@ def main() -> None:
     name = "heuristics-only" if args.no_model else (args.model or ModelConfig.from_env().model)
     RESULTS.mkdir(exist_ok=True)
     out = RESULTS / f"{re.sub(r'[^A-Za-z0-9._-]+', '_', name)}.json"
-    done = {r["ref"]: r for r in json.loads(out.read_text())["results"]} if out.exists() else {}
+    prior = json.loads(out.read_text())["results"] if out.exists() else []
+    done = {r["ref"]: r for r in prior if "error" not in r or r.get("skipped")}  # transient errors get retried
     recs = list(done.values())
     for i, pr in enumerate(todo, 1):
         if pr["ref"] in done:

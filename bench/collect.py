@@ -20,7 +20,8 @@ HERE = Path(__file__).parent
 PHRASES = ['"please split"', '"separate PR"', '"out of scope"', '"unrelated changes"', '"split this up"']
 TRIGGER = re.compile(
     r"(please split|split (this|it) (up|into)|separate (PR|pull request)|different PR|own PR|out of scope|"
-    r"unrelated (change|fix|refactor|to this)|not part of this|should be (done )?in a (separate|different|new))",
+    r"unrelated (change|fix|refactor|to this)|not part of this|should be (done )?in a (separate|different|new)|"
+    r"scope creep|drive-by|follow-?up (PR|pull)|another (PR|pull request)|move (this|that|these) (out|to a)|keep (this|the) PR (small|focused))",
     re.I,
 )
 MAINTAINER = {"OWNER", "MEMBER", "COLLABORATOR"}
@@ -65,7 +66,8 @@ def objections(gh: GitHub, owner: str, repo: str, n: int, author: str) -> list[d
                     "kind": kind,
                     "by": user.get("login"),
                     "path": c.get("path"),
-                    "line": c.get("line") or c.get("original_line"),
+                    "line": c.get("original_line") or c.get("line"),
+                    "commit": c.get("original_commit_id"),
                     "side": c.get("side"),
                     "quote": body.strip()[:400],
                     "url": c.get("html_url"),
@@ -81,6 +83,10 @@ def main() -> None:
     ap.add_argument("--pages", type=int, default=2)
     ap.add_argument("--max-files", type=int, default=40)
     ap.add_argument("--review", action="store_true", help="print the collected candidates and exit")
+    ap.add_argument("--phrases", default=None, help="comma-separated search phrases (default: built-in list)")
+    ap.add_argument("--langs", default=None, help="comma-separated repo languages")
+    ap.add_argument("--relabel-only", action="store_true", help="only create missing labels from bench/prs.jsonl")
+    ap.add_argument("--append", action="store_true", help="keep existing bench/prs.jsonl and labels.jsonl, add new PRs")
     args = ap.parse_args()
 
     prs_path, labels_path = HERE / "prs.jsonl", HERE / "labels.jsonl"
@@ -92,12 +98,18 @@ def main() -> None:
                 print(f"   [{o['kind']}] {o['by']} {o['path'] or ''}:{o['line'] or ''}  {o['quote'][:160]!r}")
         return
 
+    if args.relabel_only:
+        write_labels([json.loads(x) for x in prs_path.read_text().splitlines()])
+        return
     gh = GitHub()
-    seen: set[str] = set()
+    phrases = [f'"{x.strip()}"' for x in args.phrases.split(",")] if args.phrases else PHRASES
+    langs = args.langs.split(",") if args.langs else LANGS
+    existing = [json.loads(x) for x in prs_path.read_text().splitlines()] if args.append and prs_path.exists() else []
+    seen: set[str] = {p["ref"] for p in existing}
     stars: dict[str, int] = {}
     kept: list[dict] = []
-    for lang in LANGS:
-        for phrase in PHRASES:
+    for lang in langs:
+        for phrase in phrases:
             if len(kept) >= args.target:
                 break
             q = f"{phrase} in:comments is:pr is:closed language:{lang} comments:>=2"
@@ -136,18 +148,28 @@ def main() -> None:
                 )
                 print(f"+ {ref} ({len(objs)} objections) [{len(kept)}/{args.target}]", flush=True)
 
-    prs_path.write_text("".join(json.dumps(p) + "\n" for p in kept))
-    labels = [
-        {
-            "ref": p["ref"],
-            "reviewed": False,
-            "objected": [{"path": o["path"], "line": o["line"], "side": o["side"], "quote": o["quote"][:200]} for o in p["objections"] if o["path"]],
-            "pr_level_objection": any(not o["path"] for o in p["objections"]),
-        }
-        for p in kept
-    ]
-    labels_path.write_text("".join(json.dumps(x) + "\n" for x in labels))
-    print(f"wrote {len(kept)} PRs -> {prs_path.name}, {labels_path.name}")
+    allp = existing + kept
+    prs_path.write_text("".join(json.dumps(p) + "\n" for p in allp))
+    write_labels(allp)
+    print(f"wrote {len(kept)} new PRs ({len(allp)} total) -> {prs_path.name}, {labels_path.name}")
+
+
+def label_for(p: dict) -> dict:
+    return {
+        "ref": p["ref"],
+        "reviewed": False,
+        "objected": [{"path": o["path"], "line": o["line"], "side": o["side"], "commit": o.get("commit"), "quote": o["quote"][:200]} for o in p["objections"] if o["path"]],
+        "pr_level_objection": any(not o["path"] for o in p["objections"]),
+    }
+
+
+def write_labels(prs: list[dict]) -> None:
+    """Keep every existing label (including hand curation); add a fresh one for each PR that has none."""
+    path = HERE / "labels.jsonl"
+    have = {x["ref"]: x for x in (json.loads(line) for line in path.read_text().splitlines())} if path.exists() else {}
+    for p in prs:
+        have.setdefault(p["ref"], label_for(p))
+    path.write_text("".join(json.dumps(have[p["ref"]]) + "\n" for p in prs))
 
 
 if __name__ == "__main__":
