@@ -7,7 +7,7 @@ set -u
 cd "$(dirname "$0")/.."
 MODELS=("$@")
 [ ${#MODELS[@]} -eq 0 ] && MODELS=(gemma3:4b llama3.2:3b qwen2.5:3b phi4-mini gemma3:1b)
-MAX_HUNKS="${MAX_HUNKS:-20}"
+MAX_HUNKS="${MAX_HUNKS:-40}"
 
 nice uv run python bench/run_eval.py --no-model --max-hunks "$MAX_HUNKS"   # heuristics-only baseline, no model needed
 for m in "${MODELS[@]}"; do

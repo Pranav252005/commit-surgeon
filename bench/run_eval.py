@@ -305,7 +305,15 @@ def main() -> None:
     RESULTS.mkdir(exist_ok=True)
     out = RESULTS / f"{re.sub(r'[^A-Za-z0-9._-]+', '_', name)}.json"
     prior = json.loads(out.read_text())["results"] if out.exists() else []
-    done = {r["ref"]: r for r in prior if "error" not in r or r.get("skipped")}  # transient errors get retried
+
+    def final(r: dict) -> bool:
+        """Finished results stay. A permanent skip stays too, except a 'too large' one that now fits under a raised --max-hunks."""
+        if "error" not in r:
+            return True
+        m = re.match(r"too large: (\d+) hunks", r["error"])
+        return bool(r.get("skipped")) and not (m and int(m[1]) <= args.max_hunks)  # transient errors are retried
+
+    done = {r["ref"]: r for r in prior if final(r)}
     recs = list(done.values())
     for i, pr in enumerate(todo, 1):
         if pr["ref"] in done:
