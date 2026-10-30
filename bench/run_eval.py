@@ -87,8 +87,15 @@ def evaluate_pr(pr: dict, label: dict, args) -> dict:
         )
     except pipeline.TooLarge as e:
         return {**rec, "error": str(e), "skipped": True}
-    except (LookupError, repo.GitError) as e:  # the commit the maintainer saw was force-pushed away or deleted: permanent
+    except LookupError as e:  # GitHub has no such commit any more (force-pushed away or deleted): permanent
         return {**rec, "error": f"commit unavailable: {e}"[:200], "skipped": True}
+    except repo.GitError as e:  # only "no longer fetchable" is permanent; a failed fetch is transient and gets retried
+        permanent = "no longer fetchable" in str(e)
+        return {
+            **rec,
+            "error": f"{'commit unavailable' if permanent else 'git error'}: {e}"[:200],
+            **({"skipped": True} if permanent else {}),
+        }
     except Exception as e:  # keep going: one bad PR must not sink the run
         return {**rec, "error": f"{type(e).__name__}: {e}"[:200]}
     objected = objected_hunk_ids(a, label["objected"]) if label["objected"] else set()
@@ -311,7 +318,8 @@ def main() -> None:
         if "error" not in r:
             return True
         m = re.match(r"too large: (\d+) hunks", r["error"])
-        return bool(r.get("skipped")) and not (m and int(m[1]) <= args.max_hunks)  # transient errors are retried
+        transient = "fetch -q failed" in r["error"] or "shallow file" in r["error"] or r["error"].startswith("git error")
+        return bool(r.get("skipped")) and not transient and not (m and int(m[1]) <= args.max_hunks)  # transient errors are retried
 
     done = {r["ref"]: r for r in prior if final(r)}
     recs = list(done.values())
