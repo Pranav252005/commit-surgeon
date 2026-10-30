@@ -22,8 +22,8 @@ import time
 from pathlib import Path
 
 # Shallow clones of ~35 repos (cpython, pytorch, home-assistant, ...) add up to GBs. Keep them in RAM-backed /tmp and
-# prune each repo once its PRs are done, so the bench never fills the real disk. Override with XDG_CACHE_HOME.
-os.environ.setdefault("XDG_CACHE_HOME", "/tmp/surgeon-bench-cache")
+# prune each repo once its PRs are done, so the bench never fills the real disk. Override with SURGEON_CACHE_DIR.
+os.environ.setdefault("SURGEON_CACHE_DIR", "/tmp/surgeon-bench-cache")
 
 from surgeon import pipeline  # noqa: E402
 from surgeon.judge import ModelConfig
@@ -32,6 +32,21 @@ HERE = Path(__file__).parent
 RESULTS = HERE / "results"
 FLAGGED = {"cleanup", "unrelated", "risky"}
 _HDR = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.M)
+
+
+def wait_for_memory(min_mb: int = 800, max_wait: int = 900) -> None:
+    """This machine runs many other sessions: do not push it into swap or OOM. Wait for RAM, up to max_wait seconds."""
+    waited = 0
+    while waited < max_wait:
+        try:
+            avail = next(int(line.split()[1]) for line in open("/proc/meminfo") if line.startswith("MemAvailable")) // 1024
+        except (OSError, StopIteration, ValueError):
+            return
+        if avail >= min_mb:
+            return
+        print(f"  (waiting for memory: {avail} MB available)", flush=True)
+        time.sleep(30)
+        waited += 30
 
 
 def hunk_ranges(h) -> tuple[range, range]:
@@ -293,6 +308,7 @@ def main() -> None:
     for i, pr in enumerate(todo, 1):
         if pr["ref"] in done:
             continue
+        wait_for_memory()
         print(f"[{i}/{len(todo)}] {pr['ref']} ", end="", flush=True)
         rec = evaluate_pr(pr, labels[pr["ref"]], args)
         recs.append(rec)
@@ -305,7 +321,7 @@ def main() -> None:
         nxt = todo[i]["ref"].split("#")[0] if i < len(todo) else None
         if nxt != pr["ref"].split("#")[0]:
             owner, repo = pr["ref"].split("#")[0].split("/")
-            shutil.rmtree(Path(os.environ["XDG_CACHE_HOME"]) / "surgeon" / f"{owner}__{repo}.git", ignore_errors=True)
+            shutil.rmtree(Path(os.environ["SURGEON_CACHE_DIR"]) / f"{owner}__{repo}.git", ignore_errors=True)
     write_report()
 
 

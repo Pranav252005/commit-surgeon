@@ -18,7 +18,7 @@ import time
 import traceback
 from pathlib import Path
 
-os.environ.setdefault("XDG_CACHE_HOME", "/tmp/surgeon-bench-cache")  # RAM-backed: keep clones off the real disk
+os.environ.setdefault("SURGEON_CACHE_DIR", "/tmp/surgeon-bench-cache")  # RAM-backed: keep clones off the real disk
 
 from surgeon import pipeline, repo, split  # noqa: E402
 from surgeon.github import GitHub, parse_ref
@@ -52,7 +52,7 @@ def main() -> None:
             ok = plan.lossless and all(g.applies for g in plan.groups)
             status = "ok " if ok else "BAD"
             bad += not ok
-            shutil.rmtree(Path(os.environ["XDG_CACHE_HOME"]) / "surgeon" / f"{ref.owner}__{ref.repo}.git", ignore_errors=True)
+            shutil.rmtree(Path(os.environ["SURGEON_CACHE_DIR"]) / f"{ref.owner}__{ref.repo}.git", ignore_errors=True)
             print(
                 f"{status} {pr['ref']:42} hunks={len(a.hunks):4} {groups} {round(time.perf_counter() - t0, 1)}s {'' if ok else plan.note}",
                 flush=True,

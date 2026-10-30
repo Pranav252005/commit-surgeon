@@ -65,6 +65,13 @@ class RevReader:
         return files
 
 
+def cache_root() -> Path:
+    """Where shallow clones live. SURGEON_CACHE_DIR wins; otherwise the XDG cache directory."""
+    if os.environ.get("SURGEON_CACHE_DIR"):
+        return Path(os.environ["SURGEON_CACHE_DIR"])
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "surgeon"
+
+
 def _auth_env(token: str | None) -> dict[str, str]:
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     if token:
@@ -79,7 +86,7 @@ def _auth_env(token: str | None) -> dict[str, str]:
 
 def fetch_pr(owner: str, repo: str, number: int, base_sha: str, head_sha: str, token: str | None, cache: Path | None = None) -> RevReader:
     """Shallow-fetch the base commit and the PR head into a cached bare repo. Read-only against GitHub."""
-    cache = cache or Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "surgeon"
+    cache = cache or cache_root()
     git_dir = cache / f"{owner}__{repo}.git"
     env = _auth_env(token)
 

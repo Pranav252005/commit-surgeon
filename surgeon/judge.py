@@ -18,6 +18,7 @@ from pathlib import Path
 import httpx
 
 from .diff import Hunk
+from .repo import cache_root
 
 DEFAULT_MODEL = "gemma3:4b"
 DEFAULT_BASE_URL = "http://localhost:11434/v1"
@@ -101,7 +102,7 @@ def _parse(raw: str) -> Verdict | None:
 class Judge:
     def __init__(self, cfg: ModelConfig | None = None, cache_dir: Path | None = None, client: httpx.Client | None = None):
         self.cfg = cfg or ModelConfig.from_env()
-        self.cache_dir = cache_dir or Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "surgeon" / "judge"
+        self.cache_dir = cache_dir or cache_root() / "judge"
         headers = {}
         if self.cfg.api_key_env and os.environ.get(self.cfg.api_key_env):
             headers["Authorization"] = f"Bearer {os.environ[self.cfg.api_key_env]}"
