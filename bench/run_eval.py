@@ -306,17 +306,25 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--include-unreviewed", action="store_true")
     ap.add_argument("--report-only", action="store_true")
+    ap.add_argument("--prompt", choices=["v1", "v2"], default="v1", help="judge prompt version (v2 adds the PR file map)")
+    ap.add_argument("--only-from", default=None, help="only PRs that finished in bench/results/<name>.json (a quick like-for-like rerun)")
     args = ap.parse_args()
     if args.report_only:
         write_report()
         return
+    os.environ["SURGEON_PROMPT"] = args.prompt
     prs = [json.loads(x) for x in (HERE / "prs.jsonl").read_text().splitlines()]
     labels = {json.loads(x)["ref"]: json.loads(x) for x in (HERE / "labels.jsonl").read_text().splitlines()}
     todo = [p for p in prs if labels[p["ref"]].get("reviewed") or args.include_unreviewed]
     todo.sort(key=lambda p: p["ref"].split("#")[0])  # same repo together, so its clone can be pruned as soon as it is done
+    if args.only_from:
+        ref_done = {r["ref"] for r in json.loads((RESULTS / f"{args.only_from}.json").read_text())["results"] if "error" not in r}
+        todo = [p for p in todo if p["ref"] in ref_done]
     if args.limit:
         todo = todo[: args.limit]
     name = "heuristics-only" if args.no_model else (args.model or ModelConfig.from_env().model)
+    if args.prompt != "v1" and not args.no_model:
+        name = f"{name}+{args.prompt}"
     RESULTS.mkdir(exist_ok=True)
     out = RESULTS / f"{re.sub(r'[^A-Za-z0-9._-]+', '_', name)}.json"
     prior = json.loads(out.read_text())["results"] if out.exists() else []
