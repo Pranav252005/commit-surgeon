@@ -9,6 +9,8 @@ or closes anything: it only reads a PR and tells the reviewer what they are look
 
 It works on a PR from any author: a person, Copilot, Claude Code, Devin or a spam bot.
 
+**Try it:** [c-surgeon.vercel.app](https://c-surgeon.vercel.app) checks any public PR in your browser (rule-based half, no install). [c-surgeon-site.vercel.app](https://c-surgeon-site.vercel.app) explains what it is, which models it uses and what it costs.
+
 ```
 $ surgeon analyze owner/repo#123
  SPLIT SUGGESTED: scope score 61/100 (412 judged changed lines)
