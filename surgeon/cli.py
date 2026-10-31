@@ -60,6 +60,8 @@ def render_table(a: Analysis, per_hunk: bool = False) -> None:
     console.print(f"[dim]timings (s): {a.timings}[/dim]")
 
 
+AT_OPT = typer.Option(None, "--at", help="analyze the PR as it was at this commit (what a reviewer saw), instead of its latest head")
+
 MODEL_OPTS = dict(
     no_model=typer.Option(False, "--no-model", help="heuristics and import graph only"),
     model=typer.Option(None, "--model", help="model name (default: $SURGEON_MODEL or gemma3:4b)"),
@@ -76,6 +78,7 @@ def analyze(
     md: Path | None = typer.Option(None, "--md", help="write the Markdown report to this path ('-' for stdout)"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="no terminal report"),
     hunks: bool = typer.Option(False, "--hunks", help="heuristics table with one row per hunk (debug view)"),
+    at: str | None = AT_OPT,
     no_model: bool = MODEL_OPTS["no_model"],
     model: str | None = MODEL_OPTS["model"],
     base_url: str | None = MODEL_OPTS["base_url"],
@@ -93,6 +96,7 @@ def analyze(
                 api_key_env=api_key_env,
                 risky_importers=risky_importers,
                 progress=lambda m: st.update(f"{m}…"),
+                head_sha=at,
             )
     except (ValueError, LookupError, RuntimeError) as e:
         console.print(f"[red]error:[/red] {e}")
@@ -123,6 +127,7 @@ def split(
     api_key_env: str | None = MODEL_OPTS["api_key_env"],
     risky_importers: int = MODEL_OPTS["risky_importers"],
     no_verify: bool = typer.Option(False, "--no-verify", help="skip the git apply checks"),
+    at: str | None = AT_OPT,
 ) -> None:
     """Write one patch per group (fix / cleanup / unrelated / risky) and print the commands to apply them."""
     try:
@@ -135,6 +140,7 @@ def split(
                 api_key_env=api_key_env,
                 risky_importers=risky_importers,
                 progress=lambda m: st.update(f"{m}…"),
+                head_sha=at,
             )
             plan = splitmod.plan(a)
             if not no_verify and plan.groups:
