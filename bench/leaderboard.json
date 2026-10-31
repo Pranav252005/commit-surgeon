@@ -1,0 +1,84 @@
+{
+ "common_prs": [
+  "CircuitVerse/CircuitVerse#726",
+  "GoogleChrome/lighthouse#5846",
+  "ampproject/amphtml#26085",
+  "cockpit-project/cockpit#19024",
+  "home-assistant/core#116267",
+  "home-assistant/core#150886",
+  "home-assistant/core#170893",
+  "home-assistant/core#175076",
+  "home-assistant/core#175902",
+  "home-assistant/core#20197",
+  "home-assistant/core#44091",
+  "louislam/uptime-kuma#5916",
+  "pandas-dev/pandas#28373",
+  "python/cpython#135057",
+  "python/cpython#139123",
+  "pytorch/vision#6269",
+  "scikit-learn/scikit-learn#1776",
+  "scikit-learn/scikit-learn#522",
+  "sindresorhus/execa#208"
+ ],
+ "ranked": [
+  {
+   "name": "gemma3:4b",
+   "anchored_prs": 14,
+   "agreed": 5,
+   "recall": 0.353,
+   "precision": 0.133,
+   "f1": 0.194,
+   "median_seconds": 134.0,
+   "pr_level": "4/5",
+   "model_based": true,
+   "tied_for_best": true
+  },
+  {
+   "name": "gemma3:1b",
+   "anchored_prs": 14,
+   "agreed": 6,
+   "recall": 0.353,
+   "precision": 0.13,
+   "f1": 0.19,
+   "median_seconds": 104.0,
+   "pr_level": "5/5",
+   "model_based": true,
+   "tied_for_best": true
+  },
+  {
+   "name": "llama3.2:3b",
+   "anchored_prs": 14,
+   "agreed": 12,
+   "recall": 0.882,
+   "precision": 0.072,
+   "f1": 0.134,
+   "median_seconds": 44.2,
+   "pr_level": "5/5",
+   "model_based": true,
+   "tied_for_best": false
+  }
+ ],
+ "baselines": [
+  {
+   "name": "heuristics-only",
+   "anchored_prs": 14,
+   "agreed": 2,
+   "recall": 0.118,
+   "precision": 0.333,
+   "f1": 0.174,
+   "median_seconds": 23.1,
+   "pr_level": "2/5",
+   "model_based": false
+  },
+  {
+   "name": "flag everything (baseline)",
+   "anchored_prs": 14,
+   "agreed": 14,
+   "recall": 1.0,
+   "precision": 0.066,
+   "f1": 0.124,
+   "median_seconds": 0,
+   "pr_level": "-"
+  }
+ ]
+}

@@ -31,6 +31,7 @@ from surgeon.judge import ModelConfig
 HERE = Path(__file__).parent
 RESULTS = HERE / "results"
 FLAGGED = {"cleanup", "unrelated", "risky"}
+TIE_MARGIN = 0.02  # F1 differences below this are noise at this sample size
 _HDR = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.M)
 
 
@@ -247,7 +248,6 @@ def write_leaderboard() -> None:
     base = baseline_row([r for r in first if r["ref"] in common])
     ranked = sorted([r for r in rows if r["model_based"]], key=lambda r: (-r["f1"], -r["agreed"], r["median_seconds"] or 0))
     others = [r for r in rows if not r["model_based"]] + [base]
-    (HERE / "leaderboard.json").write_text(json.dumps({"common_prs": sorted(common), "ranked": ranked, "baselines": others}, indent=1))
     L = [
         "# ScopeBench leaderboard",
         "",
@@ -257,10 +257,17 @@ def write_leaderboard() -> None:
     ]
     if ranked:
         b = ranked[0]
-        L += [
-            f"**Best model: `{b['name']}`** (F1 {b['f1']:.2f}, recall {b['recall']:.0%}, agreed on {b['agreed']} of {b['anchored_prs']} PRs).",
-            "",
-        ]
+        tied = [r for r in ranked if b["f1"] - r["f1"] < TIE_MARGIN]
+        for r in ranked:
+            r["tied_for_best"] = len(tied) > 1 and r in tied
+        if len(tied) > 1:
+            names = ", ".join(f"`{r['name']}`" for r in tied)
+            L += [f"**Best models, tied: {names}** (F1 {b['f1']:.2f}; {b['anchored_prs']} PRs is too few to separate them).", ""]
+        else:
+            L += [
+                f"**Best model: `{b['name']}`** (F1 {b['f1']:.2f}, recall {b['recall']:.0%}, agreed on {b['agreed']} of {b['anchored_prs']} PRs).",
+                "",
+            ]
     L += [
         "| # | model | agreed (>=1 objected hunk flagged) | hunk recall | hunk precision (lower bound) | F1 | PR-level not-FOCUSED | median s/PR |",
         "|---|---|---|---|---|---|---|---|",
@@ -285,6 +292,7 @@ def write_leaderboard() -> None:
         "Then commit the new `bench/results/<name>.json` and the regenerated `LEADERBOARD.md` in a PR. Same bench, same prompt.",
         "",
     ]
+    (HERE / "leaderboard.json").write_text(json.dumps({"common_prs": sorted(common), "ranked": ranked, "baselines": others}, indent=1))
     (HERE / "LEADERBOARD.md").write_text("\n".join(L))
     print(f"wrote {HERE / 'LEADERBOARD.md'}")
 
