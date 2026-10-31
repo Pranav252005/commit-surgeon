@@ -13,7 +13,7 @@ Measured on 2026-10-31. Two different questions, with very different answers: ar
 | same, Go | cobra root package via `go.mod` | 11; grep says 12, and the extra hit is an import inside a raw string literal in a test, so 11 is right |
 | Which function a hunk belongs to | Python's own `ast` module as the reference, 3 real PRs | 82 of 82 hunks agree |
 | Split patches | each patch `git apply --check` on the base; all applied in order must equal the PR head tree | passes in unit tests (added, deleted, renamed, shifted hunks, binary files) and on real PRs, see `bench/stress.py` |
-| Everything else | 74 automated tests | pass |
+| Everything else | 86 automated tests | pass |
 
 Bugs this found and that are fixed: wrong base commit (the branch tip instead of the merge base), user git config
 changing diff paths, "risky" applied to whitespace-only changes, Java `Latest.java` read as a test, Rust parent-module
@@ -54,6 +54,19 @@ commit is no longer on GitHub, or the PR is too large to judge in reasonable tim
   reads FOCUSED. The grouped hunk list is the useful output, not the headline.
 - **The labels are noisy.** Maintainer comments are an imperfect ground truth; this bench measures agreement with them,
   not truth.
+
+### Rule-based signals came after these numbers
+
+The risk rules (CI, auth/crypto, new dependencies, shell/network calls, removed tests, changed signatures) and the PR-level
+warnings were added after the table above was measured. They are covered by unit tests only. They make more hunks `risky`, so a
+new bench run would differ from the numbers here; they have not been re-measured.
+
+### Tried, but only exploratory
+
+- **Voting across the three models** (flag a hunk when 2 of 3 agree), replayed on the stored results: F1 0.22 against 0.19 for
+  the best single model, from 3 more caught hunks out of 17. The rule was picked after seeing the results, so treat it as a lead.
+- **A second prompt (`SURGEON_PROMPT=v2`)** that shows the model a map of the PR's files. It is implemented. Its test run was
+  cancelled, so there is no number for it and v1 remains the default.
 
 ### What would likely help (not done, so not claimed)
 

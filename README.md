@@ -39,7 +39,7 @@ diff ──► heuristics ──► import graph ──► model ──► repor
 Not on PyPI yet. Python 3.12+ and [uv](https://docs.astral.sh/uv/):
 
 ```bash
-git clone <this repo> && cd commit-surgeon
+git clone https://github.com/Pranav252005/commit-surgeon && cd commit-surgeon
 uv sync
 ollama pull gemma3:4b          # any OpenAI-compatible model works, see below
 
@@ -69,15 +69,33 @@ Everything runs on your machine. The issue is only fetched from GitHub if you pa
 trims the hunks it labels cleanup / unrelated / risky, and checks again.
 
 ```bash
-pip install "commit-surgeon[mcp]"
-claude mcp add commit-surgeon -- surgeon mcp       # or add the same command to Codex / Cursor
+uv sync --extra mcp                                # from your clone of this repo
+claude mcp add commit-surgeon -- uv run --directory "$PWD" surgeon mcp   # or the same command in Codex / Cursor
 ```
+
+### Rule-based flags and warnings (no model)
+
+Pure pattern matching on paths and changed lines, so they work offline and cost nothing. A hunk that carries one of these
+signals is marked **risky** unless the issue asked for it (an asked-for hunk keeps its label and gets a "review carefully" note):
+
+- changes CI or workflow configuration (GitHub Actions, CircleCI, GitLab CI, ...)
+- touches authentication or cryptography code (`auth/`, `crypto`, `hashlib`, `verify=False`, ...)
+- adds a dependency to a manifest (`requirements.txt`, `package.json`, `Cargo.toml`, `go.mod`, ...), not a version bump
+- adds a shell or network call (`subprocess`, `fetch(`, `requests.get(`, ...)
+- removes tests, or changes the signature of a public function (Python, JS/TS exports, Go, Rust, Java)
+
+Two PR-level warnings are printed next to the verdict: **"Source changed, no tests changed"**, and **"the issue names
+a file or function this PR never touches"** (the reverse of the usual scope check: the fix may be incomplete).
+Limits: static text patterns only, so multi-line signatures and indirect calls are not seen. These rules are covered by unit tests
+but have not been measured on ScopeBench.
 
 ### GitHub Action
 
 `action/action.yml` runs the analysis on every PR in your repo and keeps one comment up to date.
 See `examples/surgeon.yml`. Without a `base-url` it runs the heuristics and import graph only (no model);
 point `base-url` at any OpenAI-compatible endpoint to get the full labels. It only ever comments on the PR it runs for.
+The comment has a summary table (verdict, score, hunk counts), the warnings above and the suggested split in a collapsed section
+(`surgeon split owner/repo#N` writes the patches). It is a suggestion by default; set the `fail-under` input (0-100) to fail the job below a score.
 
 ### Any open model
 
@@ -116,6 +134,9 @@ the sample is too small to rank them. Treat labels as a starting point for a rev
 - [`bench/LEADERBOARD.md`](bench/LEADERBOARD.md): models ranked on the same PRs, with the best model named and a flag-everything baseline.
 - [`bench/RESULTS.md`](bench/RESULTS.md): per-PR results for every model, including the misses.
 - Add your model: `bench/leaderboard.sh <ollama-model>` or `bench/run_eval.py --model <name> --base-url <endpoint>`, then open a PR with the new results file.
+- `SURGEON_PROMPT=v2` (or `bench/run_eval.py --prompt v2`) switches the judge to an experimental prompt that also shows the model a map of
+  the PR's files. It is implemented but **not yet measured**: the test run was cancelled, so v1 stays the default.
+- `scripts/modal_bench.py` runs the bench on a rented GPU on [Modal](https://modal.com) (`modal run scripts/modal_bench.py --help`).
 
 ## AI tools used
 
