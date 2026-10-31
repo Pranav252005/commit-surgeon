@@ -1,0 +1,19 @@
+{
+  "name": "Commit Surgeon bench",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y --no-install-recommends zstd && curl -fsSL https://ollama.com/install.sh | sh && pip install --no-cache-dir uv",
+  "remoteEnv": {
+    "OLLAMA_MAX_LOADED_MODELS": "1",
+    "OLLAMA_NUM_PARALLEL": "1",
+    "SURGEON_CACHE_DIR": "/tmp/surgeon-bench-cache"
+  },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
+    }
+  }
+}
