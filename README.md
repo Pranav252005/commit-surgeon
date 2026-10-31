@@ -1,6 +1,27 @@
+<div align="center">
+
 # Commit Surgeon
 
+<img src="docs/hero.svg" alt="Commit Surgeon scans a pull request of 22 changes, labels each one, and cuts it into three focused pieces: the fix, the cleanup and the risky changes." width="100%">
+
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2C614E)](LICENSE)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3A7059)
+![Runs locally](https://img.shields.io/badge/runs-locally-6E9578)
+![Hacktoberfest 2026](https://img.shields.io/badge/Devf8rge%20%C3%97%20Hacktoberfest-2026-1E5242)
+
+**[Check a PR in your browser](https://c-surgeon.vercel.app)** &nbsp;·&nbsp; **[What it is, models and cost](https://c-surgeon-site.vercel.app)** &nbsp;·&nbsp; Built by Team Swipe
+
+</div>
+
 Reviews the *shape* of a pull request, not its code quality.
+
+| | |
+|---|---|
+| **What it does** | Labels every hunk of a PR as needed, cleanup, unrelated or risky, shows who depends on it, and writes the patches that split it up. |
+| **Who it is for** | Maintainers with a full inbox, contributors checking their change before a push, coding agents (JSON and an MCP server), and teams (a GitHub Action). |
+| **What it needs** | Python 3.12+ and, for the model labels, a local model through Ollama (default `gemma3:4b`). The rule-based checks need no model. |
+| **What it costs** | Free, Apache-2.0. No hosted version yet and no price set. |
+| **How accurate** | The facts (import counts, which function a hunk is in, the split patches) are checked against `grep`, `ast` and `git apply`. The model's judgement is modest: F1 0.19 on 19 real PRs. See [Accuracy](docs/ACCURACY.md). |
 
 Give it a PR and its linked issue. It labels every hunk as **needed for the issue**, **cleanup the issue
 did not ask for**, **unrelated**, or **risky** (touches code many files import), shows the blast radius of

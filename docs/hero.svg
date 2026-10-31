@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 450" width="1200" height="450" role="img" aria-label="Commit Surgeon scans a pull request of 22 changes, labels each one, and cuts it into three focused pieces: the fix, the cleanup and the risky changes.">
+<style>
+text{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif}
+.c{fill:#3A7059;transform-box:fill-box;animation:mv 10s cubic-bezier(.16,1,.3,1) infinite,col 10s linear var(--d) infinite}
+@keyframes mv{0%,24%{transform:translate(0,0)}44%,80%{transform:translate(var(--dx),var(--dy))}97%,100%{transform:translate(0,0)}}
+@keyframes col{0%{fill:#3A7059}2%,92%{fill:var(--c)}100%{fill:#3A7059}}
+.scan{fill:#A8E6D4;animation:sc 10s linear infinite}
+@keyframes sc{0%{transform:translateX(0);opacity:1}20%{transform:translateX(1080px);opacity:1}22%,100%{transform:translateX(1080px);opacity:0}}
+.lab{opacity:0;animation:lb 10s ease-out infinite}
+@keyframes lb{0%,34%{opacity:0}46%,82%{opacity:1}94%,100%{opacity:0}}
+.verd{opacity:0;animation:vd 10s ease-out infinite}
+@keyframes vd{0%,40%{opacity:0}52%,82%{opacity:1}94%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.c,.scan,.lab,.verd{animation:none}.c{transform:translate(var(--dx),var(--dy));fill:var(--c)}.scan{opacity:0}.lab,.verd{opacity:1}}
+</style>
+<rect width="1200" height="450" rx="26" fill="#0B2A22"/>
+<rect x="1" y="1" width="1198" height="448" rx="25" fill="none" stroke="#2C614E" stroke-width="2"/>
+<text x="60" y="70" font-size="40" font-weight="700" fill="#F3EBD6" letter-spacing="-1">Commit Surgeon</text>
+<text x="60" y="104" font-size="21" fill="#A8BE9C">Review the shape of a pull request.</text>
+<g class="verd"><text x="1140" y="70" font-size="22" font-weight="700" fill="#F3EBD6" text-anchor="end">SPLIT SUGGESTED</text><text x="1140" y="100" font-size="18" fill="#A8BE9C" text-anchor="end">scope score 61 / 100</text></g>
+<rect class="c" x="60.0" y="150" width="59.7" height="36" rx="7" style="--c:#7FB08F;--dx:0.0px;--dy:0px;--d:0.00s"/>
+<rect class="c" x="124.7" y="150" width="39.8" height="36" rx="7" style="--c:#7FB08F;--dx:0.0px;--dy:0px;--d:0.12s"/>
+<rect class="c" x="169.5" y="150" width="19.9" height="36" rx="7" style="--c:#E6C98B;--dx:-109.5px;--dy:76px;--d:0.20s"/>
+<rect class="c" x="194.4" y="150" width="79.6" height="36" rx="7" style="--c:#7FB08F;--dx:-24.9px;--dy:0px;--d:0.25s"/>
+<rect class="c" x="279.0" y="150" width="39.8" height="36" rx="7" style="--c:#7FB08F;--dx:-24.9px;--dy:0px;--d:0.41s"/>
+<rect class="c" x="323.8" y="150" width="59.7" height="36" rx="7" style="--c:#7FB08F;--dx:-24.9px;--dy:0px;--d:0.49s"/>
+<rect class="c" x="388.5" y="150" width="39.8" height="36" rx="7" style="--c:#E08F80;--dx:-328.5px;--dy:152px;--d:0.61s"/>
+<rect class="c" x="433.3" y="150" width="39.8" height="36" rx="7" style="--c:#7FB08F;--dx:-69.7px;--dy:0px;--d:0.69s"/>
+<rect class="c" x="478.1" y="150" width="59.7" height="36" rx="7" style="--c:#7FB08F;--dx:-69.7px;--dy:0px;--d:0.77s"/>
+<rect class="c" x="542.8" y="150" width="19.9" height="36" rx="7" style="--c:#E6C98B;--dx:-457.9px;--dy:76px;--d:0.89s"/>
+<rect class="c" x="567.7" y="150" width="79.6" height="36" rx="7" style="--c:#7FB08F;--dx:-94.6px;--dy:0px;--d:0.94s"/>
+<rect class="c" x="652.2" y="150" width="39.8" height="36" rx="7" style="--c:#7FB08F;--dx:-94.6px;--dy:0px;--d:1.10s"/>
+<rect class="c" x="697.0" y="150" width="39.8" height="36" rx="7" style="--c:#7FB08F;--dx:-94.6px;--dy:0px;--d:1.18s"/>
+<rect class="c" x="741.8" y="150" width="19.9" height="36" rx="7" style="--c:#E6C98B;--dx:-632.0px;--dy:76px;--d:1.26s"/>
+<rect class="c" x="766.7" y="150" width="59.7" height="36" rx="7" style="--c:#7FB08F;--dx:-119.5px;--dy:0px;--d:1.31s"/>
+<rect class="c" x="831.4" y="150" width="39.8" height="36" rx="7" style="--c:#7FB08F;--dx:-119.5px;--dy:0px;--d:1.43s"/>
+<rect class="c" x="876.2" y="150" width="19.9" height="36" rx="7" style="--c:#E08F80;--dx:-771.4px;--dy:152px;--d:1.51s"/>
+<rect class="c" x="901.1" y="150" width="59.7" height="36" rx="7" style="--c:#7FB08F;--dx:-144.4px;--dy:0px;--d:1.56s"/>
+<rect class="c" x="965.8" y="150" width="39.8" height="36" rx="7" style="--c:#7FB08F;--dx:-144.4px;--dy:0px;--d:1.68s"/>
+<rect class="c" x="1010.6" y="150" width="19.9" height="36" rx="7" style="--c:#E6C98B;--dx:-875.9px;--dy:76px;--d:1.76s"/>
+<rect class="c" x="1035.5" y="150" width="39.8" height="36" rx="7" style="--c:#7FB08F;--dx:-169.3px;--dy:0px;--d:1.81s"/>
+<rect class="c" x="1080.3" y="150" width="59.7" height="36" rx="7" style="--c:#E08F80;--dx:-950.6px;--dy:152px;--d:1.89s"/>
+<rect class="scan" x="58" y="136" width="4" height="64" rx="2"/>
+<g class="lab"><circle cx="68" cy="209" r="6" fill="#7FB08F"/><text x="84" y="215" font-size="19" fill="#F3EBD6"><tspan font-weight="700">Fix</tspan>  15 hunks, needed for the issue</text></g>
+<g class="lab"><circle cx="68" cy="285" r="6" fill="#E6C98B"/><text x="84" y="291" font-size="19" fill="#F3EBD6"><tspan font-weight="700">Cleanup</tspan>  4 hunks, the issue did not ask for them</text></g>
+<g class="lab"><circle cx="68" cy="361" r="6" fill="#E08F80"/><text x="84" y="367" font-size="19" fill="#F3EBD6"><tspan font-weight="700">Risky</tspan>  3 hunks, shared code or a sensitive area</text></g>
+<text x="60" y="425" font-size="17" fill="#A8BE9C">An illustrative PR. Every flag shows its evidence, the split is verified to rebuild the PR head, and it runs locally. Apache-2.0.</text>
+</svg>
