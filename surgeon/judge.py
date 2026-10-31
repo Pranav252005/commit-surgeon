@@ -72,6 +72,7 @@ def build_prompt(hunk: Hunk, pr_title: str, issue_title: str, issue_body: str, m
     text = hunk.text if len(hunk.text) <= max_hunk else hunk.text[:max_hunk] + "\n[... hunk truncated ...]"
     where = f"{hunk.path}" + (f" in `{hunk.symbol}`" if hunk.symbol else "")
     signals = ", ".join(t for t in hunk.tags if t != hunk.kind) or "none"
+    text = text.encode("utf-8", "replace").decode("utf-8")  # raw bytes from non-UTF-8 files cannot go into a JSON request
     return (
         f"PR title: {pr_title}\n"
         f"Issue title: {issue_title}\n"

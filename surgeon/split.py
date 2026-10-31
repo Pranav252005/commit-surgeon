@@ -132,7 +132,7 @@ def verify(p: SplitPlan, reader: RevReader) -> None:
             p.note = "could not verify: " + r.stderr.decode()[:200]
             return
         for g in p.groups:
-            res = _git(reader, "apply", "--cached", "--check", "-", env=base_index, input=g.patch.encode())
+            res = _git(reader, "apply", "--cached", "--check", "-", env=base_index, input=g.patch.encode("utf-8", "surrogateescape"))
             g.applies = res.returncode == 0
             if not g.applies:
                 g.note = res.stderr.decode().strip().splitlines()[0][:200] if res.stderr else "does not apply"
@@ -140,7 +140,7 @@ def verify(p: SplitPlan, reader: RevReader) -> None:
         _git(reader, "read-tree", reader.base, env=seq_index)
         ok = True
         for g in p.groups:
-            res = _git(reader, "apply", "--cached", "-", env=seq_index, input=g.patch.encode())
+            res = _git(reader, "apply", "--cached", "-", env=seq_index, input=g.patch.encode("utf-8", "surrogateescape"))
             if res.returncode != 0:
                 ok = False
                 p.note = f"patches applied in order stop at {g.filename}: {res.stderr.decode().strip()[:160]}"
@@ -166,7 +166,7 @@ def verify(p: SplitPlan, reader: RevReader) -> None:
 def write(p: SplitPlan, out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     for g in p.groups:
-        (out_dir / g.filename).write_text(g.patch)
+        (out_dir / g.filename).write_bytes(g.patch.encode("utf-8", "surrogateescape"))
 
 
 def commands(p: SplitPlan, a: Analysis, out_dir: Path, base_branch: str | None = None) -> list[str]:

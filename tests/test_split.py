@@ -114,3 +114,25 @@ def test_a_renamed_file_with_hunks_in_different_groups_stays_in_one_patch(tmp_pa
     assert [g.slug for g in p.groups] == ["fix"]  # not two patches that would each try to rename the file
     split.verify(p, RevReader(tmp_path / ".git", base, head))
     assert p.groups[0].applies and p.lossless, p.note
+
+
+def test_a_latin1_file_survives_the_split_byte_for_byte(tmp_path):
+    git(tmp_path, "init", "-q", "-b", "main")
+    (tmp_path / "caf.py").write_bytes(b"# coding: latin-1\nname = 'caf\xe9'\n" + b"x = 1\n" * 40 + b"y = 'na\xefve'\n")
+    git(tmp_path, "add", "-A")
+    git(tmp_path, "commit", "-qm", "base")
+    base = git(tmp_path, "rev-parse", "HEAD").strip()
+    (tmp_path / "caf.py").write_bytes(b"# coding: latin-1\nname = 'caf\xe9s'\n" + b"x = 1\n" * 40 + b"y = 'na\xefve!'\n")
+    git(tmp_path, "add", "-A")
+    git(tmp_path, "commit", "-qm", "head")
+    head = git(tmp_path, "rev-parse", "HEAD").strip()
+    raw = subprocess.run(["git", "-C", str(tmp_path), "diff", base, head], capture_output=True, check=True).stdout
+    a = Analysis(pr=None, issue=None, files=parse_patch(raw.decode("utf-8", "surrogateescape")))
+    assert len(a.hunks) == 2
+    a.hunks[0].label, a.hunks[1].label = "needed", "cleanup"
+    p = split.plan(a)
+    split.verify(p, RevReader(tmp_path / ".git", base, head))
+    assert all(g.applies for g in p.groups) and p.lossless, [g.note for g in p.groups] + [p.note]
+    out = tmp_path / "out"
+    split.write(p, out)
+    assert b"caf\xe9" in (out / "01-fix.patch").read_bytes()  # written as the original bytes, not a UTF-8 re-encoding

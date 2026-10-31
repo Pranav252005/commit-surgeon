@@ -134,7 +134,8 @@ class GitHub:
             if head is None
             else f"/repos/{ref.owner}/{ref.repo}/compare/{base}...{head}"
         )
-        return self._get(path, headers={"Accept": "application/vnd.github.v3.diff"}).text
+        # bytes, not .text: a diff can contain files that are not UTF-8 (Latin-1 sources); surrogateescape keeps every byte round-trippable
+        return self._get(path, headers={"Accept": "application/vnd.github.v3.diff"}).content.decode("utf-8", "surrogateescape")
 
     def issue(self, repo: str, number: int, source: str) -> IssueInfo | None:
         try:

@@ -28,7 +28,7 @@ DIFF_ARGS = [
 
 
 def _git(repo_dir: Path, *args: str) -> str:
-    p = subprocess.run(["git", "-C", str(repo_dir), *args], capture_output=True, text=True)
+    p = subprocess.run(["git", "-C", str(repo_dir), *args], capture_output=True, encoding="utf-8", errors="surrogateescape")
     if p.returncode != 0:
         raise GitError(p.stderr.strip() or f"git {' '.join(args)} failed")
     return p.stdout

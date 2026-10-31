@@ -152,3 +152,13 @@ def test_judge_survives_http_errors(tmp_path, status):
     )
     h = Hunk("a#0", "a.py", None, "modified", 0, 1, 1, 1, 0, ["x"], [], [1], [], "@@\n+x\n")
     assert judge_hunks([h], j, "p", "i", "b") == 0 and j.error
+
+
+def test_prompt_with_non_utf8_bytes_is_valid_json_text():
+    import json
+
+    from surgeon.judge import build_prompt
+
+    files = parse_patch("diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-x = 'caf\udce9'\n+x = 'caf\udce9s'\n")
+    prompt = build_prompt(files[0].hunks[0], "pr", "issue", "body")
+    json.dumps({"p": prompt}).encode("utf-8")  # must not raise
