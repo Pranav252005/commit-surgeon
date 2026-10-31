@@ -30,10 +30,14 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--only", default="", help="comma-separated PR refs to run, e.g. to re-check failures after a fix")
     args = ap.parse_args()
     prs = [json.loads(x) for x in (HERE / "prs.jsonl").read_text().splitlines()]
     if args.limit:
         prs = prs[: args.limit]
+    if args.only:
+        keep = set(args.only.split(","))
+        prs = [p for p in prs if p["ref"] in keep]
     gh = GitHub()
     rng = random.Random(args.seed)
     bad = 0
