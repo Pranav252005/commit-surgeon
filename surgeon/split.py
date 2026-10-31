@@ -83,14 +83,32 @@ def build_patch(files: list[FileChange], hunk_ids: set[str]) -> str:
     return "".join(out)
 
 
+def _effective_labels(a: Analysis) -> dict[str, str | None]:
+    """Hunk id -> the label that decides its group. A rename cannot be split: git expects the file to exist under the
+    old name in every patch that touches it, so all hunks of a renamed file travel together, in the group of its
+    highest-priority label (needed, then cleanup, unrelated, risky)."""
+    eff = {h.id: h.label for h in a.hunks}
+    priority = [label for label, _, _ in ORDER]
+    for fc in a.files:
+        if fc.status != "renamed" or len(fc.hunks) < 2:
+            continue
+        labels = {"needed" if h.label == "ancillary" else h.label for h in fc.hunks if h.label}
+        chosen = next((label for label in priority if label in labels), None)
+        if chosen:
+            for h in fc.hunks:
+                eff[h.id] = chosen
+    return eff
+
+
 def plan(a: Analysis) -> SplitPlan:
     groups: list[Group] = []
     placed: set[str] = set()
+    eff = _effective_labels(a)
     binary = [f.path for f in a.files if f.binary]
     binary_ids = {h.id for f in a.files if f.binary for h in f.hunks}
     for label, slug, blurb in ORDER:
         labels = {label} | ({"ancillary"} if label == "needed" else set())
-        hs = [h for h in a.hunks if h.label in labels and h.id not in binary_ids]
+        hs = [h for h in a.hunks if eff[h.id] in labels and h.id not in binary_ids]
         if not hs:
             continue
         g = Group(len(groups) + 1, slug, blurb, labels, hs)

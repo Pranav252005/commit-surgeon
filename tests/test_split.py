@@ -91,3 +91,26 @@ def test_binary_files_are_listed_not_patched_and_the_rest_is_still_lossless(tmp_
     split.verify(p, reader2)
     assert all(g.applies for g in p.groups)
     assert p.lossless and "binary" in p.note
+
+
+def test_a_renamed_file_with_hunks_in_different_groups_stays_in_one_patch(tmp_path):
+    git(tmp_path, "init", "-q", "-b", "main")
+    body = [f"line {i}\n" for i in range(1, 61)]
+    (tmp_path / "old_name.py").write_text("".join(body))
+    git(tmp_path, "add", "-A")
+    git(tmp_path, "commit", "-qm", "base")
+    base = git(tmp_path, "rev-parse", "HEAD").strip()
+    git(tmp_path, "mv", "old_name.py", "new_name.py")
+    body[3] = "line 4 changed\n"
+    body[50] = "line 51 changed\n"  # two far-apart edits: two hunks
+    (tmp_path / "new_name.py").write_text("".join(body))
+    git(tmp_path, "add", "-A")
+    git(tmp_path, "commit", "-qm", "rename and edit")
+    head = git(tmp_path, "rev-parse", "HEAD").strip()
+    a = Analysis(pr=None, issue=None, files=parse_patch(git(tmp_path, "diff", "-M", base, head)))
+    assert a.files[0].status == "renamed" and len(a.files[0].hunks) == 2
+    a.hunks[0].label, a.hunks[1].label = "needed", "cleanup"  # the labels disagree
+    p = split.plan(a)
+    assert [g.slug for g in p.groups] == ["fix"]  # not two patches that would each try to rename the file
+    split.verify(p, RevReader(tmp_path / ".git", base, head))
+    assert p.groups[0].applies and p.lossless, p.note
