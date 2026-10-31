@@ -117,3 +117,10 @@ def test_markdown_has_summary_table_warnings_and_collapsed_split():
     md = report.render_markdown(a, report.summarize(a), "m")
     assert "| Verdict | Scope score |" in md and "> **Warning:** Source changed, no tests changed." in md
     assert "<details><summary>Suggested split" in md and "surgeon split o/r#1" in md
+
+
+def test_a_file_named_test_dot_something_is_a_test_file():
+    from surgeon.graph import is_test_path
+
+    assert is_test_path("test.js") and is_test_path("src/test.ts")
+    assert not is_test_path("src/contest.py") and not is_test_path("src/latest.py")

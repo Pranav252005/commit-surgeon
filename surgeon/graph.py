@@ -23,7 +23,7 @@ def is_test_path(path: str) -> bool:
     name = p.rsplit("/", 1)[-1]
     return bool(
         parts & TEST_PARTS
-        or name.startswith("test_")
+        or name.startswith(("test_", "test."))
         or name.endswith(("_test.py", ".test.ts", ".test.tsx", ".test.js", ".test.jsx", ".spec.ts", ".spec.js", "_test.go"))
         or "src/test/" in p
         or bool(_JAVA_TEST.search(path))
