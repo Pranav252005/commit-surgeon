@@ -10,6 +10,7 @@ import posixpath
 import re
 from dataclasses import dataclass
 
+from . import risk
 from .diff import FileChange, Hunk
 from .graph import ImportGraph, is_test_path
 
@@ -178,6 +179,7 @@ def apply(files: list[FileChange], graph: ImportGraph | None, issue_title: str =
             if h.kind in {"lockfile", "generated"}:
                 h.label, h.reason = "ancillary", f"{h.kind} file, follows whichever change produced it"
                 continue
+            h.tags += risk.signals(fc.path, h.kind, h.added_lines, h.removed_lines)
             hits = area.mentions(fc.path, {h.symbol} if h.symbol else set()) if area.has_issue else []
             hits = hits or file_hits
             if hits:
@@ -185,3 +187,25 @@ def apply(files: list[FileChange], graph: ImportGraph | None, issue_title: str =
                 h.reason = "; ".join(hits[:2])
             elif area.has_issue:
                 h.tags.append(miss_tag)
+
+
+def pr_warnings(files: list[FileChange], issue_title: str, issue_body: str, has_issue: bool) -> list[str]:
+    """PR-level notes that are not about one hunk. They never change a label; they are short, common review comments."""
+    hunks = [h for f in files for h in f.hunks if not h.pseudo]
+    out: list[str] = []
+    if any(h.kind == "code" and h.lines_changed for h in hunks) and not any(h.kind == "test" for h in hunks):
+        out.append("Source changed, no tests changed.")
+    if has_issue:
+        text = f"{issue_title}\n{issue_body}"
+        paths = issue_terms(issue_title, issue_body)["paths"]
+        touched = {f.path for f in files} | {f.old_path for f in files if f.old_path}
+        missing = sorted(p for p in paths if not any(t.endswith(p) or posixpath.basename(t) == posixpath.basename(p) for t in touched))
+        symbols = {part for h in hunks for sym in (h.symbol, h.top_symbol) if sym for part in sym.split(".")}
+        bodies = "\n".join(h.text for h in hunks)
+        names = sorted(
+            {n for n in re.findall(r"`([A-Za-z_][\w.]*)\(\)`", text) if n.split(".")[-1] not in symbols and n.split(".")[-1] not in bodies}
+        )
+        gaps = [f"`{x}`" for x in missing[:3]] + [f"`{x}()`" for x in names[:3]]
+        if gaps:
+            out.append("The issue names " + ", ".join(gaps[:4]) + ", which this PR never touches. The fix may be incomplete.")
+    return out

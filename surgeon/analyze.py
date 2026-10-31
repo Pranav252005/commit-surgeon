@@ -18,6 +18,7 @@ class Analysis:
     files: list[diffmod.FileChange]
     timings: dict[str, float] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def hunks(self) -> list[diffmod.Hunk]:
@@ -38,6 +39,7 @@ class Analysis:
             "hunks": hunks,
             "timings": self.timings,
             "notes": self.notes,
+            "warnings": self.warnings,
         }
 
 
@@ -74,7 +76,7 @@ def enrich(
     title, body = (issue.title, issue.body) if issue else (pr.title, pr.body)
     heuristics.apply(files, graph, title, body, "issue" if issue else "pr")
     lap("heuristics")
-    return Analysis(pr, issue, files, timings, notes)
+    return Analysis(pr, issue, files, timings, notes, heuristics.pr_warnings(files, title, body, issue is not None))
 
 
 def analyze_pr(ref: PRRef, gh: GitHub | None = None, progress=lambda msg: None, head_sha: str | None = None) -> Analysis:
