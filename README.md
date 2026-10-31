@@ -100,6 +100,19 @@ line they pointed at. Each PR is analyzed *as the maintainer saw it*, at the com
 authors often remove the flagged code later. Collection is scripted (`bench/collect.py`), curation is by hand
 (`bench/curate.py` records every decision, and the PRs where a maintainer merely deferred a contributor's idea were left out).
 
+**Where it stands today** (19 PRs, small open models that fit a 4 GB GPU; details and caveats in [`docs/ACCURACY.md`](docs/ACCURACY.md)):
+
+| | F1 on hunks maintainers objected to |
+|---|---|
+| `gemma3:4b` and `gemma3:1b` (tied) | 0.19 |
+| `llama3.2:3b` (flags nearly everything) | 0.13 |
+| heuristics only, no model | 0.17 |
+| flag every hunk (baseline) | 0.12 |
+
+The facts it reports (who imports what, which function a hunk is in, the split patches) are checked against `grep`, Python's
+`ast` and `git apply`. The model's judgement is the weak part: small models are only modestly better than the baselines, and
+the sample is too small to rank them. Treat labels as a starting point for a reviewer, not a verdict.
+
 - [`bench/LEADERBOARD.md`](bench/LEADERBOARD.md): models ranked on the same PRs, with the best model named and a flag-everything baseline.
 - [`bench/RESULTS.md`](bench/RESULTS.md): per-PR results for every model, including the misses.
 - Add your model: `bench/leaderboard.sh <ollama-model>` or `bench/run_eval.py --model <name> --base-url <endpoint>`, then open a PR with the new results file.
